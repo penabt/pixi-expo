@@ -5,7 +5,7 @@
  * bridging the gap between PixiJS's browser expectations and expo-gl's
  * React Native WebGL implementation.
  *
- * @module @pena/pixi-expo/ExpoCanvasElement
+ * @module @penabt/pixi-expo/ExpoCanvasElement
  * @author Pena Team
  * @license MIT
  *

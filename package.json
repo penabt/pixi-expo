@@ -1,5 +1,5 @@
 {
-    "name": "@pena/pixi-expo",
+    "name": "@penabt/pixi-expo",
     "version": "0.1.0",
     "description": "PixiJS v8 adapter for React Native Expo. Enables hardware-accelerated 2D graphics using expo-gl WebGL context.",
     "main": "src/index.ts",

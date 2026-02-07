@@ -6,7 +6,7 @@ const config = getDefaultConfig(__dirname);
 const projectRoot = __dirname;
 const monorepoRoot = path.resolve(projectRoot, '..');
 
-// Watch the parent directory where @pena/pixi-expo source is located
+// Watch the parent directory where @penabt/pixi-expo source is located
 config.watchFolders = [monorepoRoot];
 
 // Ensure all dependencies resolve from the project's node_modules
@@ -15,10 +15,10 @@ config.resolver.nodeModulesPaths = [
     path.resolve(projectRoot, 'node_modules'),
 ];
 
-// Map @pena/pixi-expo to the parent directory's src
+// Map @penabt/pixi-expo to the parent directory's src
 config.resolver.extraNodeModules = new Proxy(
     {
-        '@pena/pixi-expo': monorepoRoot,
+        '@penabt/pixi-expo': monorepoRoot,
     },
     {
         get: (target, name) => {

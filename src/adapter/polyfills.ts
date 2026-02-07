@@ -4,7 +4,7 @@
  * PixiJS expects a browser environment with DOM APIs. This module provides
  * minimal polyfills that satisfy PixiJS requirements without full DOM implementation.
  *
- * @module @pena/pixi-expo/polyfills
+ * @module @penabt/pixi-expo/polyfills
  * @internal This module is automatically loaded - do not import directly.
  *
  * @description

@@ -1,10 +1,10 @@
 /**
- * @fileoverview Main entry point for @pena/pixi-expo library.
+ * @fileoverview Main entry point for @penabt/pixi-expo library.
  *
  * This module provides a complete PixiJS v8 adapter for React Native Expo,
  * enabling hardware-accelerated 2D graphics using the expo-gl WebGL context.
  *
- * @module @pena/pixi-expo
+ * @module @penabt/pixi-expo
  * @author Pena Team
  * @license MIT
  *
@@ -17,7 +17,7 @@
  *
  * @example Basic Usage
  * ```tsx
- * import { PixiView, Graphics, Sprite, Assets } from '@pena/pixi-expo';
+ * import { PixiView, Graphics, Sprite, Assets } from '@penabt/pixi-expo';
  *
  * function GameScreen() {
  *   return (
@@ -37,7 +37,7 @@
  *
  * @example Loading Assets
  * ```tsx
- * import { Assets, Sprite } from '@pena/pixi-expo';
+ * import { Assets, Sprite } from '@penabt/pixi-expo';
  *
  * // Load bundled asset
  * const texture = await Assets.load(require('./assets/bunny.png'));
@@ -138,7 +138,7 @@ export type { PixiViewProps, PixiViewHandle } from './components/PixiView';
 // =============================================================================
 // EXPORTS: PIXIJS RE-EXPORTS
 // Convenience re-exports from pixi.js for single-import usage.
-// Users can import everything from '@pena/pixi-expo' instead of 'pixi.js'.
+// Users can import everything from '@penabt/pixi-expo' instead of 'pixi.js'.
 // =============================================================================
 
 export {

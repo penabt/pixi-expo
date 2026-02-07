@@ -5,13 +5,13 @@
  * It handles GL context management, the render loop, and provides convenient
  * callbacks for application setup.
  *
- * @module @pena/pixi-expo/PixiView
+ * @module @penabt/pixi-expo/PixiView
  * @author Pena Team
  * @license MIT
  *
  * @example Basic Usage
  * ```tsx
- * import { PixiView, Graphics } from '@pena/pixi-expo';
+ * import { PixiView, Graphics } from '@penabt/pixi-expo';
  *
  * function GameScreen() {
  *   return (

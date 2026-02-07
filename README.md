@@ -1,7 +1,7 @@
-# @pena/pixi-expo
+# @penabt/pixi-expo
 
-[![npm version](https://img.shields.io/npm/v/@pena/pixi-expo.svg)](https://www.npmjs.com/package/@pena/pixi-expo)
-[![license](https://img.shields.io/npm/l/@pena/pixi-expo.svg)](https://github.com/penabt/pixi-expo/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/@penabt/pixi-expo.svg)](https://www.npmjs.com/package/@penabt/pixi-expo)
+[![license](https://img.shields.io/npm/l/@penabt/pixi-expo.svg)](https://github.com/penabt/pixi-expo/blob/main/LICENSE)
 
 **PixiJS v8 adapter for React Native Expo.** Enables hardware-accelerated 2D graphics in your Expo applications using the expo-gl WebGL context.
 
@@ -18,7 +18,7 @@
 
 ```bash
 # Install the package
-npm install @pena/pixi-expo
+npm install @penabt/pixi-expo
 
 # Install peer dependencies
 npx expo install expo-gl expo-asset expo-font pixi.js
@@ -29,7 +29,7 @@ npx expo install expo-gl expo-asset expo-font pixi.js
 ```tsx
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { PixiView, Graphics, Application } from '@pena/pixi-expo';
+import { PixiView, Graphics, Application } from '@penabt/pixi-expo';
 
 export default function GameScreen() {
   const handleAppCreate = (app: Application) => {
@@ -140,7 +140,7 @@ import {
   Ticker,
   
   // And more...
-} from '@pena/pixi-expo';
+} from '@penabt/pixi-expo';
 ```
 
 ## Loading Assets
@@ -148,7 +148,7 @@ import {
 ### Bundled Assets (require)
 
 ```tsx
-import { loadTexture, Sprite } from '@pena/pixi-expo';
+import { loadTexture, Sprite } from '@penabt/pixi-expo';
 
 // Load a bundled image
 const texture = await loadTexture(require('./assets/bunny.png'));

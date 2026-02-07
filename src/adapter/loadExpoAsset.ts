@@ -69,7 +69,7 @@ function getImageSize(
  *
  * This is the recommended way to load local assets in React Native:
  * ```ts
- * import { loadTexture } from '@pena/pixi-expo';
+ * import { loadTexture } from '@penabt/pixi-expo';
  * const texture = await loadTexture(require('./assets/bunny.png'));
  * ```
  *

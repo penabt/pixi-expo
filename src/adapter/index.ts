@@ -1,11 +1,11 @@
 /**
  * @fileoverview Adapter module exports.
  *
- * This barrel file exports all adapter components for the @pena/pixi-expo package.
+ * This barrel file exports all adapter components for the @penabt/pixi-expo package.
  * These are the low-level building blocks that bridge PixiJS to expo-gl.
  *
- * @module @pena/pixi-expo/adapter
- * @internal Most users should import from '@pena/pixi-expo' directly.
+
+ * @module @penabt/pixi-expo/adapter
  */
 
 // =============================================================================

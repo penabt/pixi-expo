@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useEffect, useState } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { PixiView, Graphics, Sprite, Application, loadTexture } from '@pena/pixi-expo';
+import { PixiView, Graphics, Sprite, Application, loadTexture } from '@penabt/pixi-expo';
 
 
 
@@ -172,7 +172,7 @@ export default function App() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>🐰 @pena/pixi-expo</Text>
+        <Text style={styles.title}>🐰 @penabt/pixi-expo</Text>
         <Text style={styles.fps}>FPS: {displayFps}</Text>
       </View>
       <PixiView

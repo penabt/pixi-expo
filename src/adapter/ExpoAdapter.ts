@@ -4,7 +4,7 @@
  * This module provides the core adapter that bridges PixiJS's browser-based
  * architecture to React Native's expo-gl WebGL implementation.
  *
- * @module @pena/pixi-expo/ExpoAdapter
+ * @module @penabt/pixi-expo/ExpoAdapter
  * @author Pena Team
  * @license MIT
  *
@@ -20,7 +20,7 @@
  *
  * @example Setting up the adapter
  * ```ts
- * import { ExpoAdapter, setActiveGLContext } from '@pena/pixi-expo';
+ * import { ExpoAdapter, setActiveGLContext } from '@penabt/pixi-expo';
  * import { DOMAdapter } from 'pixi.js';
  *
  * // Set adapter before creating Application
