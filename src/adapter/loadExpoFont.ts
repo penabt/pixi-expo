@@ -10,7 +10,7 @@
 
 import * as Font from 'expo-font';
 import { Asset } from 'expo-asset';
-import { ExtensionType, extensions } from 'pixi.js';
+import { ExtensionType } from 'pixi.js';
 
 import type { LoaderParser, ResolvedAsset } from 'pixi.js';
 

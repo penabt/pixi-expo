@@ -41,7 +41,7 @@
  * ```
  */
 
-import React, {
+import {
     useCallback,
     useRef,
     useEffect,
