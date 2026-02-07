@@ -148,10 +148,10 @@ import {
 ### Bundled Assets (require)
 
 ```tsx
-import { Assets } from '@pena/pixi-expo';
+import { loadTexture, Sprite } from '@pena/pixi-expo';
 
 // Load a bundled image
-const texture = await Assets.load(require('./assets/bunny.png'));
+const texture = await loadTexture(require('./assets/bunny.png'));
 const sprite = new Sprite(texture);
 ```
 
