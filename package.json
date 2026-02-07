@@ -1,0 +1,92 @@
+{
+    "name": "@pena/pixi-expo",
+    "version": "0.1.0",
+    "description": "PixiJS v8 adapter for React Native Expo. Enables hardware-accelerated 2D graphics using expo-gl WebGL context.",
+    "main": "src/index.ts",
+    "module": "src/index.ts",
+    "types": "src/index.ts",
+    "source": "src/index.ts",
+    "sideEffects": false,
+    "publishConfig": {
+        "main": "lib/index.js",
+        "module": "lib/index.mjs",
+        "types": "lib/index.d.ts",
+        "exports": {
+            ".": {
+                "import": "./lib/index.mjs",
+                "require": "./lib/index.js",
+                "types": "./lib/index.d.ts"
+            }
+        }
+    },
+    "files": [
+        "lib",
+        "src",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+        "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+        "prepublishOnly": "npm run build",
+        "clean": "rm -rf lib",
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint src --ext .ts,.tsx"
+    },
+    "keywords": [
+        "pena",
+        "pixi",
+        "pixijs",
+        "pixi.js",
+        "expo",
+        "expo-gl",
+        "react-native",
+        "webgl",
+        "2d",
+        "graphics",
+        "game",
+        "animation",
+        "canvas",
+        "renderer"
+    ],
+    "author": {
+        "name": "Pena Team",
+        "url": "https://github.com/penabt"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/penabt/pixi-expo.git"
+    },
+    "bugs": {
+        "url": "https://github.com/penabt/pixi-expo/issues"
+    },
+    "homepage": "https://github.com/penabt/pixi-expo#readme",
+    "license": "MIT",
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "peerDependencies": {
+        "expo": ">=50.0.0",
+        "expo-asset": ">=10.0.0",
+        "expo-font": ">=12.0.0",
+        "expo-gl": ">=14.0.0",
+        "pixi.js": ">=8.0.0",
+        "react": ">=18.0.0",
+        "react-native": ">=0.73.0"
+    },
+    "peerDependenciesMeta": {
+        "expo-asset": {
+            "optional": true
+        },
+        "expo-font": {
+            "optional": true
+        }
+    },
+    "dependencies": {
+        "@xmldom/xmldom": "^0.8.10"
+    },
+    "devDependencies": {
+        "tsup": "^8.5.1",
+        "typescript": "^5.9.3"
+    }
+}
