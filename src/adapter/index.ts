@@ -14,16 +14,16 @@
 // =============================================================================
 
 export {
-    /** DOMAdapter implementation for expo-gl */
-    ExpoAdapter,
-    /** Activate GL context from expo-gl */
-    setActiveGLContext,
-    /** Get the currently active canvas */
-    getActiveCanvas,
-    /** Get the currently active GL context */
-    getActiveGL,
-    /** Clear active context on unmount */
-    clearActiveContext,
+  /** DOMAdapter implementation for expo-gl */
+  ExpoAdapter,
+  /** Activate GL context from expo-gl */
+  setActiveGLContext,
+  /** Get the currently active canvas */
+  getActiveCanvas,
+  /** Get the currently active GL context */
+  getActiveGL,
+  /** Clear active context on unmount */
+  clearActiveContext,
 } from './ExpoAdapter';
 
 // =============================================================================
@@ -32,6 +32,13 @@ export {
 // =============================================================================
 
 export { ExpoCanvasElement } from './ExpoCanvasElement';
+
+// =============================================================================
+// POLYFILL UTILITIES
+// Functions for dispatching events to polyfilled globals.
+// =============================================================================
+
+export { dispatchWindowEvent } from './polyfills';
 
 // =============================================================================
 // NOTES

@@ -1,13 +1,22 @@
-import React, { useCallback, useRef, useEffect, useState } from 'react';
+import { useCallback, useRef, useEffect, useState } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { PixiView, Graphics, Sprite, Application, loadTexture } from '@penabt/pixi-expo';
-
-
+import {
+  PixiView,
+  Sprite,
+  Application,
+  loadTexture,
+  Container,
+  FederatedPointerEvent,
+  Rectangle,
+  Texture,
+  Graphics,
+} from '@penabt/pixi-expo';
 
 export default function App() {
   const fpsRef = useRef(0);
   const [displayFps, setDisplayFps] = useState(0);
+  const [touchInfo, setTouchInfo] = useState<string>('Drag the bunnies!');
 
   // Update displayed FPS every 500ms
   useEffect(() => {
@@ -19,165 +28,141 @@ export default function App() {
 
   const handleAppCreate = useCallback(async (app: Application) => {
     console.log('PixiJS Application created!');
+    console.log(
+      `[Debug] Screen: ${app.screen.width}x${app.screen.height}, Res: ${app.renderer.resolution}`,
+    );
 
     const screenWidth = app.screen.width;
     const screenHeight = app.screen.height;
 
-    // --- New Ball Animations (X-axis centered) ---
-    // Create 3 balls with different colors
-    const colors = [0xff3366, 0x3366ff, 0x33ff66];
-    const balls: { graphic: Graphics; offset: number; speed: number; range: number; baseY: number }[] = [];
+    // Center container
+    const mainContainer = new Container();
+    app.stage.addChild(mainContainer);
 
-    colors.forEach((color, index) => {
-      const ball = new Graphics()
-        .circle(0, 0, 40)
-        .fill({ color });
+    // --- Interaction Background ---
+    // A huge invisible box to catch all events
+    const bg = new Sprite(Texture.WHITE);
+    bg.width = screenWidth;
+    bg.height = screenHeight;
+    bg.tint = 0x222222;
+    bg.eventMode = 'static';
+    app.stage.addChildAt(bg, 0);
 
-      // Center vertically, distribute horizontally initially or just center
-      ball.position.set(screenWidth / 2, screenHeight / 2 - 150);
+    // --- Debug Pointer Dot ---
+    const dot = new Graphics().circle(0, 0, 10).fill(0xff0000);
+    dot.visible = false;
+    app.stage.addChild(dot);
 
-      app.stage.addChild(ball);
+    // Make stage interactive
+    app.stage.eventMode = 'static';
+    app.stage.hitArea = app.screen;
 
-      balls.push({
-        graphic: ball,
-        offset: index * 2, // Phase shift
-        speed: 2 + index * 0.5,
-        range: 100 + index * 20,
-        baseY: screenHeight / 2 - 350 // Calculate base Y once
-      });
-    });
-
-    // --- Restore Bunny Animations ---
-    let bunnies: (Sprite | Graphics)[] = [];
+    // Multi-touch tracking map: pointerId -> DraggedObject
+    const draggingMap = new Map<number, Sprite>();
 
     try {
-      console.log('Loading bunny from local assets');
-
-      // Use Assets.load for local asset
       const bunnyTexture = await loadTexture(require('./assets/bunny.png'));
 
-      console.log('Bunny texture loaded successfully!');
-
-      // Create multiple bunnies with jumping animation
-      const bunnyCount = 5;
-
-      for (let i = 0; i < bunnyCount; i++) {
+      // Create 4 bunnies for multi-touch testing
+      for (let i = 0; i < 4; i++) {
         const bunny = new Sprite(bunnyTexture);
-
-        // Center the anchor
         bunny.anchor.set(0.5);
-
-        // Scale up the bunny (original is 26x37)
-        bunny.scale.set(3);
-
-        // Position bunnies across the right side of the screen
-        // Adjusted Y to be below the balls so they don't overlap too much
+        bunny.scale.set(4);
+        // Arrange safely for different screen sizes
+        const col = i % 2;
+        const row = Math.floor(i / 2);
         bunny.position.set(
-          screenWidth / 2 + 50 + (i - 2) * 70,
-          screenHeight / 2 + 100
+          screenWidth / 2 + (col === 0 ? -80 : 80),
+          screenHeight / 2 + (row === 0 ? -80 : 80),
         );
 
-        // Store initial Y position and random jump offset
-        (bunny as any).baseY = bunny.position.y;
-        (bunny as any).jumpOffset = i * 0.5; // Stagger the jumps
-        (bunny as any).jumpSpeed = 3 + Math.random() * 2;
-        (bunny as any).jumpHeight = 100 + Math.random() * 50;
-        (bunny as any).baseScale = 3;
+        bunny.eventMode = 'static';
+        bunny.cursor = 'pointer';
 
-        app.stage.addChild(bunny);
-        bunnies.push(bunny);
+        // Add a explicit hit area to make it easier to grab
+        bunny.hitArea = new Rectangle(-20, -20, 40, 40);
+
+        bunny.on('pointerdown', (e: FederatedPointerEvent) => {
+          // Track this specific pointer for this bunny
+          draggingMap.set(e.pointerId, bunny);
+          bunny.alpha = 0.5;
+          setTouchInfo(`Dragging Bunny (ID: ${e.pointerId})`);
+          console.log(`Bunny grabbed by pointer ${e.pointerId}`);
+
+          // Stop propagation so stage doesn't get the click
+          e.stopPropagation();
+        });
+
+        mainContainer.addChild(bunny);
       }
 
-      console.log(`Created ${bunnyCount} bunnies with jumping animation!`);
+      // Interaction listeners on background/stage
+      app.stage.on('pointerdown', (e: FederatedPointerEvent) => {
+        dot.visible = true;
+        dot.position.copyFrom(e.global);
+        console.log(
+          `Stage Down at: ${Math.round(e.global.x)}, ${Math.round(e.global.y)} (ID: ${e.pointerId})`,
+        );
+      });
 
+      app.stage.on('pointermove', (e: FederatedPointerEvent) => {
+        // Update debug dot for the latest moving pointer
+        if (dot.visible) {
+          dot.position.copyFrom(e.global);
+        }
+
+        // Move specific object if this pointer is dragging one
+        const draggedBunny = draggingMap.get(e.pointerId);
+        if (draggedBunny) {
+          draggedBunny.position.copyFrom(e.global);
+        }
+      });
+
+      const onPointerUp = (e: FederatedPointerEvent) => {
+        const draggedBunny = draggingMap.get(e.pointerId);
+        if (draggedBunny) {
+          draggedBunny.alpha = 1;
+          draggingMap.delete(e.pointerId);
+          setTouchInfo('Bunny dropped!');
+        }
+        // Only hide dot if no pointers are down?
+        // For simplicity, we just leave it or hide it.
+        // dot.visible = false;
+      };
+
+      app.stage.on('pointerup', onPointerUp);
+      app.stage.on('pointerupoutside', onPointerUp);
+      app.stage.on('pointercancel', onPointerUp);
     } catch (error) {
       console.error('Failed to load bunny:', error);
-
-      // Create placeholder circles instead of bunnies if load fails
-      console.log('Creating placeholder circles...');
-      for (let i = 0; i < 5; i++) {
-        const placeholder = new Graphics()
-          .circle(0, 0, 30)
-          .fill({ color: 0xffcc00 })
-          .stroke({ width: 3, color: 0xff8800 });
-
-        placeholder.position.set(
-          screenWidth / 2 + 50 + (i - 2) * 70,
-          screenHeight / 2 + 100
-        );
-
-        (placeholder as any).baseY = placeholder.position.y;
-        (placeholder as any).jumpOffset = i * 0.5;
-        (placeholder as any).jumpSpeed = 3 + Math.random() * 2;
-        (placeholder as any).jumpHeight = 100 + Math.random() * 50;
-        (placeholder as any).baseScale = 1;
-
-        app.stage.addChild(placeholder);
-        bunnies.push(placeholder);
-      }
-      console.log('Created placeholder circles');
     }
 
     // FPS tracking
     let frameCount = 0;
     let lastTime = performance.now();
-
-    // Animate using ticker
-    app.ticker.add((ticker: { lastTime: number }) => {
-      const time = ticker.lastTime / 1000;
-
-      // Animate Balls
-      balls.forEach((b) => {
-        // Horizontal oscillation on X axis
-        const xOffset = Math.sin(time * b.speed + b.offset) * b.range;
-        b.graphic.position.x = (screenWidth / 2) + xOffset;
-
-        // Ensure Y stays centered
-        b.graphic.position.y = b.baseY;
-      });
-
-      // Animate Bunnies
-      bunnies.forEach((bunny) => {
-        const b = bunny as any;
-        const baseScale = b.baseScale || 1;
-
-        // Bouncing jump animation using sine wave
-        const jumpPhase = time * b.jumpSpeed + b.jumpOffset;
-        const jumpY = Math.abs(Math.sin(jumpPhase)) * b.jumpHeight;
-
-        // Apply jump (negative Y goes up in PixiJS)
-        bunny.position.y = b.baseY - jumpY;
-
-        // Slight rotation wobble during jump
-        bunny.rotation = Math.sin(jumpPhase * 2) * 0.2;
-
-        // Squash and stretch effect
-        const stretchFactor = 1 + Math.abs(Math.cos(jumpPhase)) * 0.2;
-        const squashFactor = 1 - Math.abs(Math.cos(jumpPhase)) * 0.15;
-        bunny.scale.set(baseScale * squashFactor, baseScale * stretchFactor);
-      });
-
-      // Calculate FPS
+    app.ticker.add(() => {
       frameCount++;
       const currentTime = performance.now();
       if (currentTime - lastTime >= 500) {
-        fpsRef.current = Math.round(frameCount * 1000 / (currentTime - lastTime));
+        fpsRef.current = Math.round((frameCount * 1000) / (currentTime - lastTime));
         frameCount = 0;
         lastTime = currentTime;
       }
     });
-
   }, []);
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>🐰 @penabt/pixi-expo</Text>
+        <Text style={styles.title}>PixiJS Drag & Drop Test</Text>
         <Text style={styles.fps}>FPS: {displayFps}</Text>
+      </View>
+      <View style={styles.touchInfoContainer}>
+        <Text style={styles.touchInfo}>{touchInfo}</Text>
       </View>
       <PixiView
         style={styles.canvas}
-        backgroundColor={0x000000}
+        backgroundColor={0x1a1a1a}
         onApplicationCreate={handleAppCreate}
       />
       <StatusBar style="light" />
@@ -188,25 +173,34 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#1a1a1a',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 55,
+    paddingTop: 60,
     paddingBottom: 10,
     paddingHorizontal: 20,
   },
   title: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   fps: {
     color: '#33ff66',
+    fontSize: 14,
+  },
+  touchInfoContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    alignItems: 'center',
+  },
+  touchInfo: {
+    color: '#ffcc00',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '500',
   },
   canvas: {
     flex: 1,

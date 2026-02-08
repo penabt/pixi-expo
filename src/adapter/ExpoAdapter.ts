@@ -77,14 +77,14 @@ let activeGL: ExpoWebGLRenderingContext | null = null;
  * ```
  */
 export function setActiveGLContext(
-    gl: ExpoWebGLRenderingContext,
-    width: number,
-    height: number
+  gl: ExpoWebGLRenderingContext,
+  width: number,
+  height: number,
 ): ExpoCanvasElement {
-    activeCanvas = new ExpoCanvasElement(width, height);
-    activeCanvas.setGLContext(gl);
-    activeGL = gl;
-    return activeCanvas;
+  activeCanvas = new ExpoCanvasElement(width, height);
+  activeCanvas.setGLContext(gl);
+  activeGL = gl;
+  return activeCanvas;
 }
 
 /**
@@ -93,7 +93,7 @@ export function setActiveGLContext(
  * @returns The active ExpoCanvasElement, or null if none is set
  */
 export function getActiveCanvas(): ExpoCanvasElement | null {
-    return activeCanvas;
+  return activeCanvas;
 }
 
 /**
@@ -102,7 +102,7 @@ export function getActiveCanvas(): ExpoCanvasElement | null {
  * @returns The active GL context, or null if none is set
  */
 export function getActiveGL(): ExpoWebGLRenderingContext | null {
-    return activeGL;
+  return activeGL;
 }
 
 /**
@@ -112,8 +112,8 @@ export function getActiveGL(): ExpoWebGLRenderingContext | null {
  * and stale references.
  */
 export function clearActiveContext(): void {
-    activeCanvas = null;
-    activeGL = null;
+  activeCanvas = null;
+  activeGL = null;
 }
 
 // =============================================================================
@@ -136,208 +136,208 @@ export function clearActiveContext(): void {
  * - XML parsing uses @xmldom/xmldom instead of DOMParser
  */
 export const ExpoAdapter = {
-    // ===========================================================================
-    // CANVAS CREATION
-    // ===========================================================================
+  // ===========================================================================
+  // CANVAS CREATION
+  // ===========================================================================
 
-    /**
-     * Create a canvas element for rendering.
-     *
-     * If an active canvas exists (from setActiveGLContext), returns it.
-     * Otherwise creates a new ExpoCanvasElement that will need a GL context.
-     *
-     * @param width - Canvas width in pixels
-     * @param height - Canvas height in pixels
-     * @returns ExpoCanvasElement instance
-     */
-    createCanvas: (width?: number, height?: number): ExpoCanvasElement => {
-        if (activeCanvas) {
-            // Update dimensions if provided
-            if (width !== undefined) activeCanvas.width = width;
-            if (height !== undefined) activeCanvas.height = height;
-            return activeCanvas;
-        }
+  /**
+   * Create a canvas element for rendering.
+   *
+   * If an active canvas exists (from setActiveGLContext), returns it.
+   * Otherwise creates a new ExpoCanvasElement that will need a GL context.
+   *
+   * @param width - Canvas width in pixels
+   * @param height - Canvas height in pixels
+   * @returns ExpoCanvasElement instance
+   */
+  createCanvas: (width?: number, height?: number): ExpoCanvasElement => {
+    if (activeCanvas) {
+      // Update dimensions if provided
+      if (width !== undefined) activeCanvas.width = width;
+      if (height !== undefined) activeCanvas.height = height;
+      return activeCanvas;
+    }
 
-        // Create placeholder canvas (will need GL context later)
-        return new ExpoCanvasElement(width ?? 1, height ?? 1);
-    },
+    // Create placeholder canvas (will need GL context later)
+    return new ExpoCanvasElement(width ?? 1, height ?? 1);
+  },
 
-    // ===========================================================================
-    // IMAGE CREATION
-    // ===========================================================================
+  // ===========================================================================
+  // IMAGE CREATION
+  // ===========================================================================
 
-    /**
-     * Create an image element for texture loading.
-     *
-     * Returns a minimal HTMLImageElement-like object. For actual texture
-     * loading, use the loadExpoAsset loader extension which integrates
-     * with expo-asset.
-     *
-     * @returns Object mimicking HTMLImageElement interface
-     */
-    createImage: (): any => {
-        const image = {
-            src: '',
-            width: 0,
-            height: 0,
-            naturalWidth: 0,
-            naturalHeight: 0,
-            complete: false,
-            crossOrigin: '' as string | null,
-            onload: null as ((this: any, ev: Event) => any) | null,
-            onerror: null as OnErrorEventHandler | null,
+  /**
+   * Create an image element for texture loading.
+   *
+   * Returns a minimal HTMLImageElement-like object. For actual texture
+   * loading, use the loadExpoAsset loader extension which integrates
+   * with expo-asset.
+   *
+   * @returns Object mimicking HTMLImageElement interface
+   */
+  createImage: (): any => {
+    const image = {
+      src: '',
+      width: 0,
+      height: 0,
+      naturalWidth: 0,
+      naturalHeight: 0,
+      complete: false,
+      crossOrigin: '' as string | null,
+      onload: null as ((this: any, ev: Event) => any) | null,
+      onerror: null as OnErrorEventHandler | null,
 
-            /**
-             * Setting source would trigger image loading.
-             * Full implementation uses expo-asset or react-native Image.
-             */
-            set source(value: string) {
-                this.src = value;
-            },
-        };
+      /**
+       * Setting source would trigger image loading.
+       * Full implementation uses expo-asset or react-native Image.
+       */
+      set source(value: string) {
+        this.src = value;
+      },
+    };
 
-        return image;
-    },
+    return image;
+  },
 
-    // ===========================================================================
-    // RENDERING CONTEXT ACCESS
-    // ===========================================================================
+  // ===========================================================================
+  // RENDERING CONTEXT ACCESS
+  // ===========================================================================
 
-    /**
-     * Get the Canvas 2D rendering context constructor.
-     *
-     * @returns null - Canvas 2D is not supported in expo-gl
-     *
-     * @remarks
-     * expo-gl only provides WebGL contexts. For 2D canvas operations,
-     * consider using @shopify/react-native-skia as an alternative.
-     */
-    getCanvasRenderingContext2D: (): any => {
-        console.warn('ExpoAdapter: 2D context is not supported in expo-gl');
-        return null;
-    },
+  /**
+   * Get the Canvas 2D rendering context constructor.
+   *
+   * @returns null - Canvas 2D is not supported in expo-gl
+   *
+   * @remarks
+   * expo-gl only provides WebGL contexts. For 2D canvas operations,
+   * consider using @shopify/react-native-skia as an alternative.
+   */
+  getCanvasRenderingContext2D: (): any => {
+    console.warn('ExpoAdapter: 2D context is not supported in expo-gl');
+    return null;
+  },
 
-    /**
-     * Get the WebGL rendering context constructor.
-     *
-     * @returns WebGLRenderingContext constructor
-     */
-    getWebGLRenderingContext: (): typeof WebGLRenderingContext => {
-        return WebGLRenderingContext;
-    },
+  /**
+   * Get the WebGL rendering context constructor.
+   *
+   * @returns WebGLRenderingContext constructor
+   */
+  getWebGLRenderingContext: (): typeof WebGLRenderingContext => {
+    return WebGLRenderingContext;
+  },
 
-    // ===========================================================================
-    // BROWSER API SHIMS
-    // ===========================================================================
+  // ===========================================================================
+  // BROWSER API SHIMS
+  // ===========================================================================
 
-    /**
-     * Get navigator information.
-     *
-     * Returns minimal navigator object for feature detection.
-     * GPU access is not available in React Native.
-     *
-     * @returns Navigator-like object
-     */
-    getNavigator: (): { userAgent: string; gpu: GPU | null } => {
-        return {
-            userAgent: 'expo-gl/react-native',
-            gpu: null,
-        };
-    },
+  /**
+   * Get navigator information.
+   *
+   * Returns minimal navigator object for feature detection.
+   * GPU access is not available in React Native.
+   *
+   * @returns Navigator-like object
+   */
+  getNavigator: (): { userAgent: string; gpu: GPU | null } => {
+    return {
+      userAgent: 'expo-gl/react-native',
+      gpu: null,
+    };
+  },
 
-    /**
-     * Get the base URL for relative resource loading.
-     *
-     * @returns Empty string - React Native has no traditional base URL
-     *
-     * @remarks
-     * For bundled assets, use expo-asset's Asset.fromModule(require('./file'))
-     * instead of relative URLs.
-     */
-    getBaseUrl: (): string => {
-        return '';
-    },
+  /**
+   * Get the base URL for relative resource loading.
+   *
+   * @returns Empty string - React Native has no traditional base URL
+   *
+   * @remarks
+   * For bundled assets, use expo-asset's Asset.fromModule(require('./file'))
+   * instead of relative URLs.
+   */
+  getBaseUrl: (): string => {
+    return '';
+  },
 
-    /**
-     * Get the FontFaceSet for CSS font loading.
-     *
-     * @returns null - FontFaceSet is not available in React Native
-     *
-     * @remarks
-     * Use expo-font's Font.loadAsync() for font loading in Expo apps.
-     * The loadExpoFont loader extension provides PixiJS integration.
-     */
-    getFontFaceSet: (): FontFaceSet | null => {
-        return null;
-    },
+  /**
+   * Get the FontFaceSet for CSS font loading.
+   *
+   * @returns null - FontFaceSet is not available in React Native
+   *
+   * @remarks
+   * Use expo-font's Font.loadAsync() for font loading in Expo apps.
+   * The loadExpoFont loader extension provides PixiJS integration.
+   */
+  getFontFaceSet: (): FontFaceSet | null => {
+    return null;
+  },
 
-    // ===========================================================================
-    // NETWORK REQUESTS
-    // ===========================================================================
+  // ===========================================================================
+  // NETWORK REQUESTS
+  // ===========================================================================
 
-    /**
-     * Fetch a resource from network or local storage.
-     *
-     * Handles different URL schemes:
-     * - http:// / https:// - Standard network fetch
-     * - file:// - Local file (requires expo-file-system)
-     * - asset:// - Bundled asset (requires expo-asset)
-     *
-     * @param url - Resource URL or Request object
-     * @param options - Fetch options
-     * @returns Promise resolving to Response
-     *
-     * @example
-     * ```ts
-     * const response = await ExpoAdapter.fetch('https://example.com/data.json');
-     * const json = await response.json();
-     * ```
-     */
-    fetch: async (url: RequestInfo, options?: RequestInit): Promise<Response> => {
-        const requestUrl = typeof url === 'string' ? url : (url as Request).url;
+  /**
+   * Fetch a resource from network or local storage.
+   *
+   * Handles different URL schemes:
+   * - http:// / https:// - Standard network fetch
+   * - file:// - Local file (requires expo-file-system)
+   * - asset:// - Bundled asset (requires expo-asset)
+   *
+   * @param url - Resource URL or Request object
+   * @param options - Fetch options
+   * @returns Promise resolving to Response
+   *
+   * @example
+   * ```ts
+   * const response = await ExpoAdapter.fetch('https://example.com/data.json');
+   * const json = await response.json();
+   * ```
+   */
+  fetch: async (url: RequestInfo, options?: RequestInit): Promise<Response> => {
+    const requestUrl = typeof url === 'string' ? url : (url as Request).url;
 
-        // Remote URL - use standard fetch
-        if (requestUrl.startsWith('http://') || requestUrl.startsWith('https://')) {
-            return fetch(requestUrl, options);
-        }
+    // Remote URL - use standard fetch
+    if (requestUrl.startsWith('http://') || requestUrl.startsWith('https://')) {
+      return fetch(requestUrl, options);
+    }
 
-        // Local file URL
-        if (requestUrl.startsWith('file://')) {
-            console.warn('ExpoAdapter: Local file loading requires expo-file-system');
-            return fetch(requestUrl, options);
-        }
+    // Local file URL
+    if (requestUrl.startsWith('file://')) {
+      console.warn('ExpoAdapter: Local file loading requires expo-file-system');
+      return fetch(requestUrl, options);
+    }
 
-        // Asset URL or require() number
-        if (requestUrl.startsWith('asset://') || typeof url === 'number') {
-            console.warn('ExpoAdapter: Asset loading requires expo-asset');
-            throw new Error('Asset loading not implemented');
-        }
+    // Asset URL or require() number
+    if (requestUrl.startsWith('asset://') || typeof url === 'number') {
+      console.warn('ExpoAdapter: Asset loading requires expo-asset');
+      throw new Error('Asset loading not implemented');
+    }
 
-        // Default - try standard fetch
-        return fetch(requestUrl, options);
-    },
+    // Default - try standard fetch
+    return fetch(requestUrl, options);
+  },
 
-    // ===========================================================================
-    // XML PARSING
-    // ===========================================================================
+  // ===========================================================================
+  // XML PARSING
+  // ===========================================================================
 
-    /**
-     * Parse an XML string into a Document.
-     *
-     * Uses @xmldom/xmldom since native DOMParser is not available
-     * in React Native. Required for SVG and other XML asset parsing.
-     *
-     * @param xml - XML string to parse
-     * @returns Parsed Document object
-     *
-     * @example
-     * ```ts
-     * const svg = '<svg>...</svg>';
-     * const doc = ExpoAdapter.parseXML(svg);
-     * ```
-     */
-    parseXML: (xml: string): Document => {
-        const parser = new DOMParser();
-        return parser.parseFromString(xml, 'text/xml') as unknown as Document;
-    },
+  /**
+   * Parse an XML string into a Document.
+   *
+   * Uses @xmldom/xmldom since native DOMParser is not available
+   * in React Native. Required for SVG and other XML asset parsing.
+   *
+   * @param xml - XML string to parse
+   * @returns Parsed Document object
+   *
+   * @example
+   * ```ts
+   * const svg = '<svg>...</svg>';
+   * const doc = ExpoAdapter.parseXML(svg);
+   * ```
+   */
+  parseXML: (xml: string): Document => {
+    const parser = new DOMParser();
+    return parser.parseFromString(xml, 'text/xml') as unknown as Document;
+  },
 };

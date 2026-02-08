@@ -34,10 +34,8 @@ import { PixiView, Graphics, Application } from '@penabt/pixi-expo';
 export default function GameScreen() {
   const handleAppCreate = (app: Application) => {
     // Create a red circle
-    const circle = new Graphics()
-      .circle(0, 0, 50)
-      .fill({ color: 0xff0000 });
-    
+    const circle = new Graphics().circle(0, 0, 50).fill({ color: 0xff0000 });
+
     circle.position.set(200, 300);
     app.stage.addChild(circle);
 
@@ -72,13 +70,13 @@ The main component for rendering PixiJS content.
 
 ```tsx
 <PixiView
-  style={ViewStyle}                         // Container styles
-  backgroundColor={0x000000}                // Background color (hex)
-  resolution={1}                            // Device pixel ratio
-  antialias={true}                          // Enable antialiasing
-  onApplicationCreate={(app) => {}}         // Called when app is ready
-  onContextCreate={(gl) => {}}              // Called when GL context created
-  onError={(error) => {}}                   // Called on initialization error
+  style={ViewStyle} // Container styles
+  backgroundColor={0x000000} // Background color (hex)
+  resolution={1} // Device pixel ratio
+  antialias={true} // Enable antialiasing
+  onApplicationCreate={(app) => {}} // Called when app is ready
+  onContextCreate={(gl) => {}} // Called when GL context created
+  onError={(error) => {}} // Called on initialization error
 />
 ```
 
@@ -118,27 +116,27 @@ import {
   AnimatedSprite,
   Mesh,
   NineSliceSprite,
-  
+
   // Textures
   Texture,
   RenderTexture,
   Assets,
-  
+
   // Geometry
   Matrix,
   Point,
   Rectangle,
   Circle,
   Polygon,
-  
+
   // Filters
   Filter,
   BlurFilter,
   ColorMatrixFilter,
-  
+
   // Animation
   Ticker,
-  
+
   // And more...
 } from '@penabt/pixi-expo';
 ```
@@ -182,11 +180,11 @@ const texture = await Assets.load('https://example.com/sprite.png');
 
 ## Compatibility
 
-| Package | Version |
-|---------|---------|
-| pixi.js | ≥ 8.0.0 |
-| expo | ≥ 50.0.0 |
-| expo-gl | ≥ 14.0.0 |
+| Package      | Version  |
+| ------------ | -------- |
+| pixi.js      | ≥ 8.0.0  |
+| expo         | ≥ 50.0.0 |
+| expo-gl      | ≥ 14.0.0 |
 | react-native | ≥ 0.73.0 |
 
 ## Contributing

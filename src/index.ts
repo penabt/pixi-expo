@@ -62,11 +62,11 @@ import './adapter/polyfills';
 // =============================================================================
 
 import {
-    ExpoAdapter,
-    setActiveGLContext,
-    getActiveCanvas,
-    getActiveGL,
-    clearActiveContext,
+  ExpoAdapter,
+  setActiveGLContext,
+  getActiveCanvas,
+  getActiveGL,
+  clearActiveContext,
 } from './adapter';
 import { ExpoCanvasElement } from './adapter';
 
@@ -99,18 +99,18 @@ extensions.add(loadExpoFont);
 // =============================================================================
 
 export {
-    /** Custom DOMAdapter implementation for expo-gl */
-    ExpoAdapter,
-    /** Canvas element wrapper for expo-gl WebGL context */
-    ExpoCanvasElement,
-    /** Activate a GL context for PixiJS rendering */
-    setActiveGLContext,
-    /** Get the currently active canvas element */
-    getActiveCanvas,
-    /** Get the currently active WebGL context */
-    getActiveGL,
-    /** Clear the active context (called on unmount) */
-    clearActiveContext,
+  /** Custom DOMAdapter implementation for expo-gl */
+  ExpoAdapter,
+  /** Canvas element wrapper for expo-gl WebGL context */
+  ExpoCanvasElement,
+  /** Activate a GL context for PixiJS rendering */
+  setActiveGLContext,
+  /** Get the currently active canvas element */
+  getActiveCanvas,
+  /** Get the currently active WebGL context */
+  getActiveGL,
+  /** Clear the active context (called on unmount) */
+  clearActiveContext,
 };
 
 // =============================================================================
@@ -119,12 +119,12 @@ export {
 // =============================================================================
 
 export {
-    /** Load textures using expo-asset (supports require() and URLs) */
-    loadExpoAsset,
-    /** Load a texture from require() module ID or URL (recommended for local assets) */
-    loadTexture,
-    /** Load fonts using expo-font */
-    loadExpoFont,
+  /** Load textures using expo-asset (supports require() and URLs) */
+  loadExpoAsset,
+  /** Load a texture from require() module ID or URL (recommended for local assets) */
+  loadTexture,
+  /** Load fonts using expo-font */
+  loadExpoFont,
 };
 
 // =============================================================================
@@ -136,149 +136,169 @@ export { PixiView } from './components/PixiView';
 export type { PixiViewProps, PixiViewHandle } from './components/PixiView';
 
 // =============================================================================
+// EXPORTS: TOUCH EVENT BRIDGE
+// Utilities for custom touch event handling.
+// =============================================================================
+
+export {
+  /** Convert React Native touch events to PixiJS pointer events */
+  convertTouchToPointerEvents,
+  /** Clear touch tracking state */
+  clearTouchTracking,
+  /** Get number of active touches */
+  getActiveTouchCount,
+} from './utils/touchEventBridge';
+export type {
+  /** PointerEvent-like object for PixiJS */
+  NativePointerEvent,
+  /** Options for touch event bridge */
+  TouchEventBridgeOptions,
+} from './utils/touchEventBridge';
+
+// =============================================================================
 // EXPORTS: PIXIJS RE-EXPORTS
 // Convenience re-exports from pixi.js for single-import usage.
 // Users can import everything from '@penabt/pixi-expo' instead of 'pixi.js'.
 // =============================================================================
 
 export {
-    // ---------------------------------------------------------------------------
-    // Core Application
-    // ---------------------------------------------------------------------------
-    /** Main PixiJS application class */
-    Application,
+  // ---------------------------------------------------------------------------
+  // Core Application
+  // ---------------------------------------------------------------------------
+  /** Main PixiJS application class */
+  Application,
 
-    // ---------------------------------------------------------------------------
-    // Display Objects
-    // ---------------------------------------------------------------------------
-    /** Base container for display objects */
-    Container,
-    /** Sprite for displaying textures */
-    Sprite,
-    /** Vector graphics drawing */
-    Graphics,
-    /** Text rendering (requires canvas 2D - limited support) */
-    Text,
-    /** Repeating/tiling sprite */
-    TilingSprite,
-    /** Spritesheet animation */
-    AnimatedSprite,
-    /** Custom mesh geometry */
-    Mesh,
-    /** 9-slice scaling sprite */
-    NineSliceSprite,
+  // ---------------------------------------------------------------------------
+  // Display Objects
+  // ---------------------------------------------------------------------------
+  /** Base container for display objects */
+  Container,
+  /** Sprite for displaying textures */
+  Sprite,
+  /** Vector graphics drawing */
+  Graphics,
+  /** Text rendering (requires canvas 2D - limited support) */
+  Text,
+  /** Repeating/tiling sprite */
+  TilingSprite,
+  /** Spritesheet animation */
+  AnimatedSprite,
+  /** Custom mesh geometry */
+  Mesh,
+  /** 9-slice scaling sprite */
+  NineSliceSprite,
 
-    // ---------------------------------------------------------------------------
-    // Textures & Resources
-    // ---------------------------------------------------------------------------
-    /** GPU texture wrapper */
-    Texture,
-    /** Texture source data */
-    TextureSource,
-    /** Multiple textures from a single image */
-    Spritesheet,
-    /** Render to texture */
-    RenderTexture,
+  // ---------------------------------------------------------------------------
+  // Textures & Resources
+  // ---------------------------------------------------------------------------
+  /** GPU texture wrapper */
+  Texture,
+  /** Texture source data */
+  TextureSource,
+  /** Multiple textures from a single image */
+  Spritesheet,
+  /** Render to texture */
+  RenderTexture,
 
-    // ---------------------------------------------------------------------------
-    // Asset Management
-    // ---------------------------------------------------------------------------
-    /** Asset loading and caching system */
-    Assets,
+  // ---------------------------------------------------------------------------
+  // Asset Management
+  // ---------------------------------------------------------------------------
+  /** Asset loading and caching system */
+  Assets,
 
-    // ---------------------------------------------------------------------------
-    // Geometry & Math
-    // ---------------------------------------------------------------------------
-    /** 2D transformation matrix */
-    Matrix,
-    /** 2D point */
-    Point,
-    /** Observable 2D point */
-    ObservablePoint,
-    /** Rectangle bounds */
-    Rectangle,
-    /** Circle shape */
-    Circle,
-    /** Ellipse shape */
-    Ellipse,
-    /** Polygon shape */
-    Polygon,
-    /** Rounded rectangle shape */
-    RoundedRectangle,
+  // ---------------------------------------------------------------------------
+  // Geometry & Math
+  // ---------------------------------------------------------------------------
+  /** 2D transformation matrix */
+  Matrix,
+  /** 2D point */
+  Point,
+  /** Observable 2D point */
+  ObservablePoint,
+  /** Rectangle bounds */
+  Rectangle,
+  /** Circle shape */
+  Circle,
+  /** Ellipse shape */
+  Ellipse,
+  /** Polygon shape */
+  Polygon,
+  /** Rounded rectangle shape */
+  RoundedRectangle,
 
-    // ---------------------------------------------------------------------------
-    // Filters & Effects
-    // ---------------------------------------------------------------------------
-    /** Base filter class */
-    Filter,
-    /** Gaussian blur filter */
-    BlurFilter,
-    /** Color adjustment filter */
-    ColorMatrixFilter,
-    /** Noise filter */
-    NoiseFilter,
-    /** Displacement map filter */
-    DisplacementFilter,
+  // ---------------------------------------------------------------------------
+  // Filters & Effects
+  // ---------------------------------------------------------------------------
+  /** Base filter class */
+  Filter,
+  /** Gaussian blur filter */
+  BlurFilter,
+  /** Color adjustment filter */
+  ColorMatrixFilter,
+  /** Noise filter */
+  NoiseFilter,
+  /** Displacement map filter */
+  DisplacementFilter,
 
-    // ---------------------------------------------------------------------------
-    // Text & Fonts
-    // ---------------------------------------------------------------------------
-    /** Pre-rendered bitmap font text */
-    BitmapText,
-    /** Text styling options */
-    TextStyle,
+  // ---------------------------------------------------------------------------
+  // Text & Fonts
+  // ---------------------------------------------------------------------------
+  /** Pre-rendered bitmap font text */
+  BitmapText,
+  /** Text styling options */
+  TextStyle,
 
-    // ---------------------------------------------------------------------------
-    // Rendering
-    // ---------------------------------------------------------------------------
-    /** Batch rendering system */
-    Batcher,
+  // ---------------------------------------------------------------------------
+  // Rendering
+  // ---------------------------------------------------------------------------
+  /** Batch rendering system */
+  Batcher,
 
-    // ---------------------------------------------------------------------------
-    // Events & Interaction
-    // ---------------------------------------------------------------------------
-    /** Unified pointer/touch/mouse event */
-    FederatedPointerEvent,
-    /** Event boundary for hit testing */
-    EventBoundary,
+  // ---------------------------------------------------------------------------
+  // Events & Interaction
+  // ---------------------------------------------------------------------------
+  /** Unified pointer/touch/mouse event */
+  FederatedPointerEvent,
+  /** Event boundary for hit testing */
+  EventBoundary,
 
-    // ---------------------------------------------------------------------------
-    // Color
-    // ---------------------------------------------------------------------------
-    /** Color utility class */
-    Color,
+  // ---------------------------------------------------------------------------
+  // Color
+  // ---------------------------------------------------------------------------
+  /** Color utility class */
+  Color,
 
-    // ---------------------------------------------------------------------------
-    // Ticker & Animation
-    // ---------------------------------------------------------------------------
-    /** Frame-based animation ticker */
-    Ticker,
+  // ---------------------------------------------------------------------------
+  // Ticker & Animation
+  // ---------------------------------------------------------------------------
+  /** Frame-based animation ticker */
+  Ticker,
 
-    // ---------------------------------------------------------------------------
-    // Extension System
-    // ---------------------------------------------------------------------------
-    /** Plugin/extension management */
-    extensions,
-    /** Extension type constants */
-    ExtensionType,
+  // ---------------------------------------------------------------------------
+  // Extension System
+  // ---------------------------------------------------------------------------
+  /** Plugin/extension management */
+  extensions,
+  /** Extension type constants */
+  ExtensionType,
 
-    // ---------------------------------------------------------------------------
-    // Adapter
-    // ---------------------------------------------------------------------------
-    /** DOM adapter for environment abstraction */
-    DOMAdapter,
+  // ---------------------------------------------------------------------------
+  // Adapter
+  // ---------------------------------------------------------------------------
+  /** DOM adapter for environment abstraction */
+  DOMAdapter,
 } from 'pixi.js';
 
 // Re-export types for TypeScript users
 export type {
-    /** Application initialization options */
-    ApplicationOptions,
-    /** Texture creation options */
-    TextureSourceOptions,
-    /** Spritesheet data format */
-    SpritesheetData,
-    /** Filter options */
-    FilterOptions,
-    /** Renderer type */
-    Renderer,
+  /** Application initialization options */
+  ApplicationOptions,
+  /** Texture creation options */
+  TextureSourceOptions,
+  /** Spritesheet data format */
+  SpritesheetData,
+  /** Filter options */
+  FilterOptions,
+  /** Renderer type */
+  Renderer,
 } from 'pixi.js';
