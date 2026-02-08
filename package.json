@@ -2,29 +2,27 @@
   "name": "@penabt/pixi-expo",
   "version": "0.2.0",
   "description": "PixiJS v8 adapter for React Native Expo. Enables hardware-accelerated 2D graphics using expo-gl WebGL context.",
-  "main": "src/index.ts",
-  "module": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
   "source": "src/index.ts",
   "sideEffects": [
     "./src/adapter/polyfills.ts",
-    "./lib/adapter/polyfills.js",
-    "./lib/adapter/polyfills.mjs"
+    "./dist/adapter/polyfills.js",
+    "./dist/adapter/polyfills.mjs"
   ],
-  "publishConfig": {
-    "main": "lib/index.js",
-    "module": "lib/index.mjs",
-    "types": "lib/index.d.ts",
-    "exports": {
-      ".": {
-        "import": "./lib/index.mjs",
-        "require": "./lib/index.js",
-        "types": "./lib/index.d.ts"
-      }
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
     }
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
-    "lib",
+    "dist",
     "src",
     "README.md",
     "LICENSE"
