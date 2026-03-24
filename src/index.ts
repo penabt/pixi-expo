@@ -76,22 +76,42 @@ import { ExpoCanvasElement } from './adapter';
 // and configure it to use our custom adapter.
 // =============================================================================
 
-import { DOMAdapter, extensions } from 'pixi.js';
+import { DOMAdapter, extensions, loadTextures, Assets } from 'pixi.js';
 
 // Set the custom adapter before any PixiJS rendering occurs
 DOMAdapter.set(ExpoAdapter as any);
 
 // =============================================================================
 // PHASE 4: ASSET LOADERS
-// Register custom loaders that use Expo's asset system.
+// Remove PixiJS's built-in texture loader (uses createImageBitmap which doesn't
+// exist in React Native) and register our Expo-compatible loaders.
 // These must be registered after DOMAdapter is configured.
 // =============================================================================
 
-import { loadExpoAsset, loadTexture } from './adapter/loadExpoAsset';
+import { loadExpoAsset, loadTexture, registerModuleId } from './adapter/loadExpoAsset';
 import { loadExpoFont } from './adapter/loadExpoFont';
 
+extensions.remove(loadTextures);
 extensions.add(loadExpoAsset);
 extensions.add(loadExpoFont);
+
+// =============================================================================
+// PHASE 5: PATCH Assets.load TO ACCEPT require() IDs
+// PixiJS's Assets.load() only accepts strings. This patch allows passing
+// numeric require() module IDs directly: Assets.load(require('./img.png'))
+// =============================================================================
+
+const _originalLoad = Assets.load.bind(Assets);
+(Assets as any).load = function patchedLoad(urls: any, onProgress?: any): Promise<any> {
+  if (typeof urls === 'number') {
+    return _originalLoad(registerModuleId(urls), onProgress);
+  }
+  if (Array.isArray(urls)) {
+    const resolved = urls.map((u: any) => (typeof u === 'number' ? registerModuleId(u) : u));
+    return _originalLoad(resolved, onProgress);
+  }
+  return _originalLoad(urls, onProgress);
+};
 
 // =============================================================================
 // EXPORTS: ADAPTER UTILITIES
@@ -126,6 +146,19 @@ export {
   /** Load fonts using expo-font */
   loadExpoFont,
 };
+
+// =============================================================================
+// EXPORTS: MANIFEST & BUNDLE UTILITIES
+// Transform Expo-flavored manifests (with require() IDs) for PixiJS Assets.
+// =============================================================================
+
+export { createExpoManifest, createExpoBundle, resolveExpoAsset } from './adapter/expoManifest';
+export type {
+  ExpoAssetSrc,
+  ExpoUnresolvedAsset,
+  ExpoAssetsBundle,
+  ExpoAssetsManifest,
+} from './adapter/expoManifest';
 
 // =============================================================================
 // EXPORTS: REACT COMPONENTS
@@ -301,4 +334,10 @@ export type {
   FilterOptions,
   /** Renderer type */
   Renderer,
+  /** Manifest format for Assets.init() */
+  AssetsManifest,
+  /** Bundle format within a manifest */
+  AssetsBundle,
+  /** Unresolved asset entry */
+  UnresolvedAsset,
 } from 'pixi.js';

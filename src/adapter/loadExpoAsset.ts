@@ -14,9 +14,18 @@ import { ExtensionType, Texture, ImageSource, LoaderParserPriority } from 'pixi.
 
 import type { LoaderParser, ResolvedAsset } from 'pixi.js';
 
-const validImageExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+const validImageExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.avif', '.gif'];
+const validImageMIMEs = [
+  'image/png',
+  'image/jpg',
+  'image/jpeg',
+  'image/webp',
+  'image/avif',
+  'image/gif',
+];
 
 const MODULE_PREFIX = '__expo_module_';
+const URL_PREFIX = '__expo_url_';
 
 /**
  * Registry mapping stringified keys to original require() module IDs.
@@ -24,6 +33,37 @@ const MODULE_PREFIX = '__expo_module_';
  * so we need this map to recover the original module ID.
  */
 const moduleIdRegistry = new Map<string, number>();
+
+/**
+ * Registry mapping stringified keys to original string URLs.
+ * PixiJS's Resolver auto-assigns built-in parsers for known extensions (e.g. .png → loadTextures),
+ * bypassing our custom loader's test(). Wrapping URLs with a prefix ensures they always
+ * route through loadExpoAsset.
+ */
+const urlRegistry = new Map<string, string>();
+let urlCounter = 0;
+
+/**
+ * Register a require() module ID in the registry and return the string key.
+ * This key can be used as a `src` in PixiJS Assets system and will be
+ * intercepted by the loadExpoAsset loader.
+ */
+export function registerModuleId(moduleId: number): string {
+  const key = `${MODULE_PREFIX}${moduleId}`;
+  moduleIdRegistry.set(key, moduleId);
+  return key;
+}
+
+/**
+ * Register a string URL in the registry and return a prefixed key.
+ * This prevents PixiJS's resolver from routing the URL to built-in
+ * browser-dependent parsers that don't work in React Native.
+ */
+export function registerAssetUrl(url: string): string {
+  const key = `${URL_PREFIX}${urlCounter++}`;
+  urlRegistry.set(key, url);
+  return key;
+}
 
 /**
  * Get file extension from a URL or path
@@ -69,8 +109,7 @@ export async function loadTexture(source: number | string): Promise<Texture> {
   const { Assets } = await import('pixi.js');
 
   if (typeof source === 'number') {
-    const key = `${MODULE_PREFIX}${source}`;
-    moduleIdRegistry.set(key, source);
+    const key = registerModuleId(source);
     return Assets.load(key);
   }
 
@@ -100,59 +139,103 @@ export const loadExpoAsset = {
   test(url: string): boolean {
     // Handle registered module IDs (from loadTexture helper)
     if (url.startsWith(MODULE_PREFIX)) {
+      if (__DEV__) console.log(`[loadExpoAsset] test("${url}") → true (module)`);
+      return true;
+    }
+
+    // Handle registered URL keys (from createExpoManifest / registerAssetUrl)
+    if (url.startsWith(URL_PREFIX)) {
+      if (__DEV__) console.log(`[loadExpoAsset] test("${url}") → true (registered url)`);
       return true;
     }
 
     // Handle local file URIs
     if (url.startsWith('file://')) {
+      if (__DEV__) console.log(`[loadExpoAsset] test("${url}") → true (file)`);
       return true;
+    }
+
+    // Handle data URLs with valid image MIME types
+    if (url.startsWith('data:')) {
+      const result = validImageMIMEs.some((mime) => url.startsWith(`data:${mime}`));
+      if (__DEV__)
+        console.log(`[loadExpoAsset] test("${url.slice(0, 40)}...") → ${result} (data url)`);
+      return result;
     }
 
     // Handle URLs with valid image extensions
     const ext = getExtension(url);
+    const result = validImageExtensions.includes(ext);
 
-    return validImageExtensions.includes(ext);
+    if (__DEV__) console.log(`[loadExpoAsset] test("${url}") ext="${ext}" → ${result}`);
+    return result;
   },
 
   /**
    * Load an asset and create a PixiJS Texture
    */
   async load(url: string, _asset?: ResolvedAsset): Promise<Texture> {
-    let expoAsset: Asset;
-
     try {
-      if (url.startsWith(MODULE_PREFIX)) {
-        // Recover the original require() module ID from registry
-        const moduleId = moduleIdRegistry.get(url);
-
-        if (moduleId === undefined) {
-          throw new Error(`Module ID not found in registry for key: ${url}`);
-        }
-
-        expoAsset = Asset.fromModule(moduleId);
-      } else if (isRemoteUrl(url)) {
-        expoAsset = Asset.fromURI(url);
-      } else {
-        expoAsset = Asset.fromURI(url);
+      if (__DEV__) {
+        console.log(`[loadExpoAsset] Loading: ${url}`);
       }
 
-      // Download the asset to local storage
-      await expoAsset.downloadAsync();
+      let localUri: string;
+      let width: number | undefined;
+      let height: number | undefined;
 
-      const localUri = expoAsset.localUri || expoAsset.uri;
+      // Resolve registered URL keys back to original URLs
+      const resolvedUrl = url.startsWith(URL_PREFIX) ? (urlRegistry.get(url) ?? url) : url;
+
+      if (url.startsWith(URL_PREFIX) && !urlRegistry.has(url)) {
+        throw new Error(`URL not found in registry for key: ${url}`);
+      }
+
+      if (resolvedUrl.startsWith(MODULE_PREFIX)) {
+        // Recover the original require() module ID from registry
+        const moduleId = moduleIdRegistry.get(resolvedUrl);
+
+        if (moduleId === undefined) {
+          throw new Error(`Module ID not found in registry for key: ${resolvedUrl}`);
+        }
+
+        const expoAsset = Asset.fromModule(moduleId);
+        await expoAsset.downloadAsync();
+
+        localUri = expoAsset.localUri || expoAsset.uri;
+        width = expoAsset.width ?? undefined;
+        height = expoAsset.height ?? undefined;
+      } else if (isRemoteUrl(resolvedUrl)) {
+        // Download remote image to local cache via expo-asset
+        const expoAsset = Asset.fromURI(resolvedUrl);
+        await expoAsset.downloadAsync();
+
+        localUri = expoAsset.localUri || expoAsset.uri;
+        width = expoAsset.width ?? undefined;
+        height = expoAsset.height ?? undefined;
+      } else {
+        // Local file URI
+        const expoAsset = Asset.fromURI(resolvedUrl);
+        await expoAsset.downloadAsync();
+
+        localUri = expoAsset.localUri || expoAsset.uri;
+        width = expoAsset.width ?? undefined;
+        height = expoAsset.height ?? undefined;
+      }
 
       if (!localUri) {
         throw new Error(`Failed to get local URI for asset: ${url}`);
       }
 
-      // Get dimensions from the asset metadata or via Image.getSize
-      let width = expoAsset.width;
-      let height = expoAsset.height;
-
+      // Get dimensions via Image.getSize if not already known
       if (!width || !height) {
         const size = await getImageSize(localUri);
         width = size.width;
         height = size.height;
+      }
+
+      if (__DEV__) {
+        console.log(`[loadExpoAsset] Resolved: ${localUri} (${width}x${height})`);
       }
 
       // Create an HTMLImageElement instance that:
@@ -177,7 +260,7 @@ export const loadExpoAsset = {
 
       return new Texture({ source });
     } catch (error) {
-      console.error(`Failed to load asset: ${url}`, error);
+      console.error(`[loadExpoAsset] Failed to load: ${url}`, error);
       throw error;
     }
   },

@@ -5,20 +5,59 @@ import {
   PixiView,
   Sprite,
   Application,
-  loadTexture,
   Container,
   FederatedPointerEvent,
   Rectangle,
   Texture,
   Graphics,
+  Assets,
+  BitmapText,
+  createExpoManifest,
 } from '@penabt/pixi-expo';
+
+// =============================================================================
+// MANIFEST — bundle-based loading
+// =============================================================================
+
+const manifest = createExpoManifest({
+  bundles: [
+    {
+      name: 'load-screen',
+      assets: [{ alias: 'logo', src: require('./assets/icon.png') }],
+    },
+    {
+      name: 'game-screen',
+      assets: [
+        { alias: 'bunny-local', src: require('./assets/bunny.png') },
+        { alias: 'bunny-remote', src: 'https://pixijs.com/assets/bunny.png' },
+      ],
+    },
+  ],
+});
+
+// BitmapFont URL — PixiJS bitmap font parser loads .xml + atlas .png together
+const BITMAP_FONT_URL = 'https://pixijs.com/assets/bitmap-font/desyrel.xml';
+
+// =============================================================================
+// BUNNY CONFIG
+// =============================================================================
+
+const BUNNIES = [
+  { alias: 'bunny-local', border: 0xff0000, label: 'Bundle\nLocal' },
+  { alias: 'bunny-remote', border: 0x3399ff, label: 'Bundle\nRemote' },
+  { alias: 'direct-local', border: 0xff8800, label: 'Direct\nLocal' },
+  { alias: 'direct-remote', border: 0x33cc33, label: 'Direct\nRemote' },
+];
+
+function createBorder(w: number, h: number, color: number): Graphics {
+  return new Graphics().rect(-w / 2 - 4, -h / 2 - 4, w + 8, h + 8).stroke({ color, width: 3 });
+}
 
 export default function App() {
   const fpsRef = useRef(0);
   const [displayFps, setDisplayFps] = useState(0);
-  const [touchInfo, setTouchInfo] = useState<string>('Drag the bunnies!');
+  const [touchInfo, setTouchInfo] = useState<string>('Loading assets...');
 
-  // Update displayed FPS every 500ms
   useEffect(() => {
     const interval = setInterval(() => {
       setDisplayFps(fpsRef.current);
@@ -28,125 +67,195 @@ export default function App() {
 
   const handleAppCreate = useCallback(async (app: Application) => {
     console.log('PixiJS Application created!');
-    console.log(
-      `[Debug] Screen: ${app.screen.width}x${app.screen.height}, Res: ${app.renderer.resolution}`,
-    );
 
     const screenWidth = app.screen.width;
     const screenHeight = app.screen.height;
 
-    // Center container
-    const mainContainer = new Container();
-    app.stage.addChild(mainContainer);
+    // =========================================================================
+    // PHASE 1: Load screen bundle
+    // =========================================================================
 
-    // --- Interaction Background ---
-    // A huge invisible box to catch all events
+    await Assets.init({ manifest });
+    const loadScreenAssets = await Assets.loadBundle('load-screen');
+    console.log('Load screen bundle loaded:', Object.keys(loadScreenAssets));
+
+    const logo = new Sprite(loadScreenAssets.logo);
+    logo.anchor.set(0.5);
+    logo.position.set(screenWidth / 2, screenHeight / 2);
+    logo.scale.set(0.5);
+    app.stage.addChild(logo);
+
+    // =========================================================================
+    // PHASE 2: Load BitmapFont (remote .xml — parser auto-loads atlas .png)
+    // =========================================================================
+
+    await Assets.load(BITMAP_FONT_URL);
+    console.log('BitmapFont loaded');
+
+    // =========================================================================
+    // PHASE 3: Game screen bundle (local + remote textures)
+    // =========================================================================
+
+    const gameAssets = await Assets.loadBundle('game-screen');
+    console.log('Game bundle loaded:', Object.keys(gameAssets));
+
+    // =========================================================================
+    // PHASE 4: Direct Assets.load — local require() + remote URL
+    // =========================================================================
+
+    const directLocal: Texture = await Assets.load(require('./assets/bunny.png'));
+    console.log('Direct local loaded');
+
+    const directRemote: Texture = await Assets.load('https://pixijs.com/assets/bunny.png');
+    console.log('Direct remote loaded');
+
+    const textures: Record<string, Texture> = {
+      'bunny-local': gameAssets['bunny-local'],
+      'bunny-remote': gameAssets['bunny-remote'],
+      'direct-local': directLocal,
+      'direct-remote': directRemote,
+    };
+
+    // Remove loading logo
+    app.stage.removeChild(logo);
+    logo.destroy();
+
+    // =========================================================================
+    // PHASE 5: Build game scene with BitmapText labels
+    // =========================================================================
+
     const bg = new Sprite(Texture.WHITE);
     bg.width = screenWidth;
     bg.height = screenHeight;
     bg.tint = 0x222222;
     bg.eventMode = 'static';
-    app.stage.addChildAt(bg, 0);
+    app.stage.addChild(bg);
 
-    // --- Debug Pointer Dot ---
+    app.stage.eventMode = 'static';
+    app.stage.hitArea = app.screen;
+
+    const mainContainer = new Container();
+    app.stage.addChild(mainContainer);
+
     const dot = new Graphics().circle(0, 0, 10).fill(0xff0000);
     dot.visible = false;
     app.stage.addChild(dot);
 
-    // Make stage interactive
-    app.stage.eventMode = 'static';
-    app.stage.hitArea = app.screen;
+    const draggingMap = new Map<number, Container>();
 
-    // Multi-touch tracking map: pointerId -> DraggedObject
-    const draggingMap = new Map<number, Sprite>();
+    const positions = [
+      { col: -1, row: -1 },
+      { col: 1, row: -1 },
+      { col: -1, row: 1 },
+      { col: 1, row: 1 },
+    ];
 
-    try {
-      const bunnyTexture = await loadTexture(require('./assets/bunny.png'));
+    for (let i = 0; i < BUNNIES.length; i++) {
+      const { alias, border: borderColor, label } = BUNNIES[i];
+      const texture = textures[alias];
 
-      // Create 4 bunnies for multi-touch testing
-      for (let i = 0; i < 4; i++) {
-        const bunny = new Sprite(bunnyTexture);
-        bunny.anchor.set(0.5);
-        bunny.scale.set(4);
-        // Arrange safely for different screen sizes
-        const col = i % 2;
-        const row = Math.floor(i / 2);
-        bunny.position.set(
-          screenWidth / 2 + (col === 0 ? -80 : 80),
-          screenHeight / 2 + (row === 0 ? -80 : 80),
-        );
+      const bunnyContainer = new Container();
+      const { col, row } = positions[i];
+      bunnyContainer.position.set(screenWidth / 2 + col * 80, screenHeight / 2 + row * 80);
 
-        bunny.eventMode = 'static';
-        bunny.cursor = 'pointer';
+      // Bunny sprite
+      const bunny = new Sprite(texture);
+      bunny.anchor.set(0.5);
+      bunny.scale.set(4);
+      bunnyContainer.addChild(bunny);
 
-        // Add a explicit hit area to make it easier to grab
-        bunny.hitArea = new Rectangle(-20, -20, 40, 40);
+      // Border
+      const scaledW = texture.width * 4;
+      const scaledH = texture.height * 4;
+      const borderGfx = createBorder(scaledW, scaledH, borderColor);
+      bunnyContainer.addChild(borderGfx);
 
-        bunny.on('pointerdown', (e: FederatedPointerEvent) => {
-          // Track this specific pointer for this bunny
-          draggingMap.set(e.pointerId, bunny);
-          bunny.alpha = 0.5;
-          setTouchInfo(`Dragging Bunny (ID: ${e.pointerId})`);
-          console.log(`Bunny grabbed by pointer ${e.pointerId}`);
-
-          // Stop propagation so stage doesn't get the click
-          e.stopPropagation();
+      // BitmapText label below the bunny
+      const lines = label.split('\n');
+      lines.forEach((line, lineIdx) => {
+        const bitmapLabel = new BitmapText({
+          text: line,
+          style: {
+            fontFamily: 'Desyrel',
+            fontSize: 24,
+          },
         });
-
-        mainContainer.addChild(bunny);
-      }
-
-      // Interaction listeners on background/stage
-      app.stage.on('pointerdown', (e: FederatedPointerEvent) => {
-        dot.visible = true;
-        dot.position.copyFrom(e.global);
-        console.log(
-          `Stage Down at: ${Math.round(e.global.x)}, ${Math.round(e.global.y)} (ID: ${e.pointerId})`,
-        );
+        bitmapLabel.anchor.set(0.5);
+        bitmapLabel.tint = borderColor;
+        bitmapLabel.position.set(0, scaledH / 2 + 14 + lineIdx * 22);
+        bunnyContainer.addChild(bitmapLabel);
       });
 
-      app.stage.on('pointermove', (e: FederatedPointerEvent) => {
-        // Update debug dot for the latest moving pointer
-        if (dot.visible) {
-          dot.position.copyFrom(e.global);
-        }
+      // Interaction
+      bunnyContainer.eventMode = 'static';
+      bunnyContainer.cursor = 'pointer';
+      bunnyContainer.hitArea = new Rectangle(
+        -scaledW / 2 - 4,
+        -scaledH / 2 - 4,
+        scaledW + 8,
+        scaledH + 60,
+      );
 
-        // Move specific object if this pointer is dragging one
-        const draggedBunny = draggingMap.get(e.pointerId);
-        if (draggedBunny) {
-          draggedBunny.position.copyFrom(e.global);
-        }
+      bunnyContainer.on('pointerdown', (e: FederatedPointerEvent) => {
+        draggingMap.set(e.pointerId, bunnyContainer);
+        bunnyContainer.alpha = 0.5;
+        setTouchInfo(`Dragging ${lines.join(' ')}`);
+        e.stopPropagation();
       });
 
-      const onPointerUp = (e: FederatedPointerEvent) => {
-        const draggedBunny = draggingMap.get(e.pointerId);
-        if (draggedBunny) {
-          draggedBunny.alpha = 1;
-          draggingMap.delete(e.pointerId);
-          setTouchInfo('Bunny dropped!');
-        }
-        // Only hide dot if no pointers are down?
-        // For simplicity, we just leave it or hide it.
-        // dot.visible = false;
-      };
-
-      app.stage.on('pointerup', onPointerUp);
-      app.stage.on('pointerupoutside', onPointerUp);
-      app.stage.on('pointercancel', onPointerUp);
-    } catch (error) {
-      console.error('Failed to load bunny:', error);
+      mainContainer.addChild(bunnyContainer);
     }
 
-    // FPS tracking
+    // Title text at top
+    const title = new BitmapText({
+      text: 'Bundle + Direct Load',
+      style: { fontFamily: 'Desyrel', fontSize: 36 },
+    });
+    title.anchor.set(0.5);
+    title.tint = 0xffffff;
+    title.position.set(screenWidth / 2, 30);
+    app.stage.addChild(title);
+
+    setTouchInfo('Drag the bunnies!');
+
+    // =========================================================================
+    // INTERACTION
+    // =========================================================================
+
+    app.stage.on('pointerdown', (e: FederatedPointerEvent) => {
+      dot.visible = true;
+      dot.position.copyFrom(e.global);
+    });
+
+    app.stage.on('pointermove', (e: FederatedPointerEvent) => {
+      if (dot.visible) dot.position.copyFrom(e.global);
+      const dragged = draggingMap.get(e.pointerId);
+      if (dragged) dragged.position.copyFrom(e.global);
+    });
+
+    const onPointerUp = (e: FederatedPointerEvent) => {
+      const dragged = draggingMap.get(e.pointerId);
+      if (dragged) {
+        dragged.alpha = 1;
+        draggingMap.delete(e.pointerId);
+        setTouchInfo('Bunny dropped!');
+      }
+    };
+
+    app.stage.on('pointerup', onPointerUp);
+    app.stage.on('pointerupoutside', onPointerUp);
+    app.stage.on('pointercancel', onPointerUp);
+
+    // FPS
     let frameCount = 0;
     let lastTime = performance.now();
     app.ticker.add(() => {
       frameCount++;
-      const currentTime = performance.now();
-      if (currentTime - lastTime >= 500) {
-        fpsRef.current = Math.round((frameCount * 1000) / (currentTime - lastTime));
+      const now = performance.now();
+      if (now - lastTime >= 500) {
+        fpsRef.current = Math.round((frameCount * 1000) / (now - lastTime));
         frameCount = 0;
-        lastTime = currentTime;
+        lastTime = now;
       }
     });
   }, []);
@@ -154,7 +263,7 @@ export default function App() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>PixiJS Drag & Drop Test</Text>
+        <Text style={styles.title}>Bundle + Direct Load Demo</Text>
         <Text style={styles.fps}>FPS: {displayFps}</Text>
       </View>
       <View style={styles.touchInfoContainer}>

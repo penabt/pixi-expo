@@ -143,21 +143,92 @@ import {
 
 ## Loading Assets
 
-### Bundled Assets (require)
+All asset loading goes through the Expo-compatible loader. PixiJS's browser-dependent `loadTextures` parser is replaced automatically — you don't need to do anything special.
+
+Supported formats: `.png`, `.jpg`, `.jpeg`, `.webp`, `.avif`, `.gif`, `data:image/*`
+
+### Direct Loading — `Assets.load()`
+
+Works with both `require()` (local bundled) and string URLs (remote):
 
 ```tsx
-import { loadTexture, Sprite } from '@penabt/pixi-expo';
+import { Assets, Sprite } from '@penabt/pixi-expo';
 
-// Load a bundled image
-const texture = await loadTexture(require('./assets/bunny.png'));
-const sprite = new Sprite(texture);
+// Local asset via require()
+const bunny = await Assets.load(require('./assets/bunny.png'));
+const sprite = new Sprite(bunny);
+
+// Remote asset via URL
+const remote = await Assets.load('https://example.com/sprite.png');
+
+// Multiple assets
+const [a, b] = await Assets.load([require('./assets/a.png'), 'https://example.com/b.png']);
 ```
 
-### Remote Assets (URL)
+### Manifest & Bundles — `createExpoManifest()`
+
+For larger projects, group assets into bundles and load them on demand:
 
 ```tsx
-// Load from URL
-const texture = await Assets.load('https://example.com/sprite.png');
+import { Assets, createExpoManifest } from '@penabt/pixi-expo';
+
+const manifest = createExpoManifest({
+  bundles: [
+    {
+      name: 'load-screen',
+      assets: [{ alias: 'logo', src: require('./assets/logo.png') }],
+    },
+    {
+      name: 'game',
+      assets: [
+        { alias: 'hero', src: require('./assets/hero.png') },
+        { alias: 'enemy', src: 'https://cdn.example.com/enemy.png' },
+      ],
+    },
+  ],
+});
+
+// Initialize once
+await Assets.init({ manifest });
+
+// Load bundles on demand
+const loadAssets = await Assets.loadBundle('load-screen');
+const gameAssets = await Assets.loadBundle('game');
+const heroSprite = new Sprite(gameAssets.hero);
+```
+
+### Dynamic Bundles — `createExpoBundle()`
+
+Register bundles at runtime:
+
+```tsx
+import { Assets, createExpoBundle } from '@penabt/pixi-expo';
+
+Assets.addBundle(
+  'powerups',
+  createExpoBundle([
+    { alias: 'shield', src: require('./assets/shield.png') },
+    { alias: 'speed', src: 'https://cdn.example.com/speed.png' },
+  ]),
+);
+
+const powerups = await Assets.loadBundle('powerups');
+```
+
+### BitmapFont
+
+Load `.fnt` or `.xml` bitmap fonts — the atlas texture is loaded automatically:
+
+```tsx
+import { Assets, BitmapText } from '@penabt/pixi-expo';
+
+await Assets.load('https://example.com/fonts/myfont.xml');
+
+const score = new BitmapText({
+  text: 'Score: 0',
+  style: { fontFamily: 'MyFont', fontSize: 32 },
+});
+app.stage.addChild(score);
 ```
 
 ## Performance Tips
@@ -174,9 +245,9 @@ const texture = await Assets.load('https://example.com/sprite.png');
 
 ## Limitations
 
-- **No Canvas 2D** - expo-gl only supports WebGL, not Canvas 2D context
-- **No HTMLText** - HTML-based text rendering is not available
-- **Font Loading** - Use expo-font for loading custom fonts
+- **No Canvas 2D** — expo-gl only supports WebGL, not Canvas 2D context
+- **No Text** — `Text` (canvas-based) and `HTMLText` are not available. Use `BitmapText` instead
+- **Font Loading** — Use `BitmapFont` (`.fnt`/`.xml` + atlas) for in-game text, or `expo-font` for system fonts
 
 ## Compatibility
 

@@ -290,7 +290,7 @@ export function dispatchWindowEvent(event: { type: string; [key: string]: any })
   const listeners = windowListeners.get(event.type);
 
   if (__DEV__) {
-    console.log(`[Window] dispatchEvent: ${event.type}, listeners: ${listeners?.size ?? 0}`);
+    //console.log(`[Window] dispatchEvent: ${event.type}, listeners: ${listeners?.size ?? 0}`);
   }
 
   if (!listeners || listeners.size === 0) {

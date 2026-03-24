@@ -29,6 +29,9 @@ config.resolver.extraNodeModules = new Proxy(
   },
 );
 
+// Add bitmap font file extensions as assets
+config.resolver.assetExts = [...(config.resolver.assetExts || []), 'xml', 'fnt'];
+
 // Block duplicate modules from parent directory
 config.resolver.blockList = [
   // Block node_modules from the parent directory
