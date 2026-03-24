@@ -160,10 +160,27 @@ const sprite = new Sprite(bunny);
 
 // Remote asset via URL
 const remote = await Assets.load('https://example.com/sprite.png');
-
-// Multiple assets
-const [a, b] = await Assets.load([require('./assets/a.png'), 'https://example.com/b.png']);
 ```
+
+### Array Loading — `Assets.load([])`
+
+Load multiple assets at once with array destructuring:
+
+```tsx
+import { Assets, Sprite } from '@penabt/pixi-expo';
+
+// Mix require() and remote URLs in a single call
+const [frame1, frame2, enemy] = await Assets.load([
+  require('./assets/frame-1.png'),
+  require('./assets/frame-2.png'),
+  'https://example.com/enemy.png',
+]);
+
+const sprite1 = new Sprite(frame1);
+const sprite2 = new Sprite(frame2);
+```
+
+> **Note:** Unlike standard PixiJS (which returns a `Record<string, Texture>` for arrays), `@penabt/pixi-expo` returns an array in the same order as the input — enabling convenient destructuring.
 
 ### Manifest & Bundles — `createExpoManifest()`
 

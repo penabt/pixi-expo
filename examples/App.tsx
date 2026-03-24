@@ -100,14 +100,14 @@ export default function App() {
     console.log('Game bundle loaded:', Object.keys(gameAssets));
 
     // =========================================================================
-    // PHASE 4: Direct Assets.load — local require() + remote URL
+    // PHASE 4: Direct Assets.load — array with require() + remote URL
     // =========================================================================
 
-    const directLocal: Texture = await Assets.load(require('./assets/bunny.png'));
-    console.log('Direct local loaded');
-
-    const directRemote: Texture = await Assets.load('https://pixijs.com/assets/bunny.png');
-    console.log('Direct remote loaded');
+    const [directLocal, directRemote] = await Assets.load([
+      require('./assets/bunny.png'),
+      'https://pixijs.com/assets/bunny.png',
+    ]);
+    console.log('Direct array load done:', !!directLocal, !!directRemote);
 
     const textures: Record<string, Texture> = {
       'bunny-local': gameAssets['bunny-local'],

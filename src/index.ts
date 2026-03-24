@@ -108,7 +108,11 @@ const _originalLoad = Assets.load.bind(Assets);
   }
   if (Array.isArray(urls)) {
     const resolved = urls.map((u: any) => (typeof u === 'number' ? registerModuleId(u) : u));
-    return _originalLoad(resolved, onProgress);
+    // Assets.load returns Record<string, T> for arrays. Convert to array so
+    // callers can destructure: const [a, b] = await Assets.load([url1, url2])
+    return _originalLoad(resolved, onProgress).then((record: any) => {
+      return resolved.map((key: string) => record[key]);
+    });
   }
   return _originalLoad(urls, onProgress);
 };
