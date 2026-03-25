@@ -255,7 +255,7 @@ export const loadExpoAsset = {
         resource: img,
         width,
         height,
-        alphaMode: 'premultiplied-alpha',
+        alphaMode: 'no-premultiply-alpha',
       });
 
       return new Texture({ source });
