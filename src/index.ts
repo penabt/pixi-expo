@@ -173,6 +173,14 @@ export { PixiView } from './components/PixiView';
 export type { PixiViewProps, PixiViewHandle } from './components/PixiView';
 
 // =============================================================================
+// EXPORTS: DESIGN RESOLUTION
+// Design resolution utilities for fixed coordinate systems.
+// =============================================================================
+
+export { calculateDesignScale } from './utils/designResolution';
+export type { DesignScaleMode, DesignScaleResult } from './utils/designResolution';
+
+// =============================================================================
 // EXPORTS: TOUCH EVENT BRIDGE
 // Utilities for custom touch event handling.
 // =============================================================================

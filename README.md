@@ -248,6 +248,57 @@ const score = new BitmapText({
 app.stage.addChild(score);
 ```
 
+## Design Resolution
+
+Fixed coordinate system for your game. Define a virtual resolution and the library automatically scales the stage to fit any device screen.
+
+```tsx
+<PixiView
+  designWidth={720}
+  designHeight={1280}
+  scaleMode="NO_BORDER"
+  backgroundColor={0x1a1a2e}
+  onApplicationCreate={(app) => {
+    // All coordinates are in 720x1280 space — same on every device
+    const sprite = new Sprite(texture);
+    sprite.position.set(360, 640); // always center
+    app.stage.addChild(sprite);
+  }}
+/>
+```
+
+### Scale Modes
+
+| Mode        | Behavior                                            | Best For              |
+| ----------- | --------------------------------------------------- | --------------------- |
+| `SHOW_ALL`  | Entire design area visible, letterbox bars on edges | UI-heavy apps, menus  |
+| `NO_BORDER` | Fills screen, edges may be cropped                  | Most games            |
+| `EXACT_FIT` | Stretches to fill, may distort aspect ratio         | Pixel-perfect layouts |
+
+### How It Works
+
+The renderer runs at the device's real screen size for full quality. The stage is transformed (scaled + positioned) so your game logic always works in the design coordinate space.
+
+- **NO_BORDER**: `scale = max(screenW/designW, screenH/designH)` — uniform scale, no gaps, edges cropped
+- **SHOW_ALL**: `scale = min(screenW/designW, screenH/designH)` — uniform scale, no crop, bars on short axis
+- **EXACT_FIT**: `scaleX = screenW/designW, scaleY = screenH/designH` — non-uniform, fills exactly
+
+### Design Tips
+
+- Match your design resolution to your game's orientation (portrait → tall, landscape → wide)
+- For `NO_BORDER`, keep important content away from edges — they may be cropped on different aspect ratios
+- Use `e.getLocalPosition(app.stage)` for touch coordinates in design space (not `e.global`)
+- Access scale info programmatically: `pixiRef.current?.getDesignScale()`
+
+### Extracting Design Scale
+
+```tsx
+import { calculateDesignScale } from '@penabt/pixi-expo';
+
+const scale = calculateDesignScale(720, 1280, screenWidth, screenHeight, 'NO_BORDER');
+// scale.scaleX, scale.scaleY, scale.offsetX, scale.offsetY
+```
+
 ## Performance Tips
 
 1. **Use Shared Ticker** - PixiView enables `sharedTicker` by default for optimal performance

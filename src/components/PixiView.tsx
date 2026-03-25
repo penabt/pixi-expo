@@ -59,6 +59,11 @@ import {
   clearTouchTracking,
   type NativePointerEvent,
 } from '../utils/touchEventBridge';
+import {
+  calculateDesignScale,
+  type DesignScaleMode,
+  type DesignScaleResult,
+} from '../utils/designResolution';
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -138,6 +143,38 @@ export interface PixiViewProps {
    * @param error - The error that occurred
    */
   onError?: (error: Error) => void;
+
+  /**
+   * Fixed design width for the virtual coordinate system.
+   * When set (along with designHeight), the PixiJS stage is initialized
+   * at this size and automatically scaled to fit the screen.
+   *
+   * All game logic uses this coordinate space regardless of device screen size.
+   *
+   * @example
+   * ```tsx
+   * <PixiView designWidth={768} designHeight={1024} scaleMode="SHOW_ALL" />
+   * ```
+   */
+  designWidth?: number;
+
+  /**
+   * Fixed design height for the virtual coordinate system.
+   * Must be set together with designWidth.
+   */
+  designHeight?: number;
+
+  /**
+   * How the design resolution maps to the physical screen.
+   * Only used when designWidth and designHeight are set.
+   *
+   * - `SHOW_ALL`: Letterbox — entire design area visible, bars on shorter axis (default)
+   * - `NO_BORDER`: Fill screen — uniformly scaled, overflowing edges cropped
+   * - `EXACT_FIT`: Stretch to fill — may distort aspect ratio
+   *
+   * @default 'SHOW_ALL'
+   */
+  scaleMode?: DesignScaleMode;
 }
 
 /**
@@ -168,6 +205,12 @@ export interface PixiViewHandle {
    * @returns Promise resolving to base64-encoded image data
    */
   takeSnapshot: () => Promise<string>;
+
+  /**
+   * Get the current design-to-screen scale info.
+   * @returns The scale result, or null if design resolution is not active
+   */
+  getDesignScale: () => DesignScaleResult | null;
 }
 
 // =============================================================================
@@ -202,7 +245,13 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
     onApplicationCreate,
     onContextCreate,
     onError,
+    designWidth,
+    designHeight,
+    scaleMode = 'SHOW_ALL',
   } = props;
+
+  /** Whether design resolution mode is active */
+  const hasDesignResolution = designWidth != null && designHeight != null;
 
   // ===========================================================================
   // REFS
@@ -225,6 +274,12 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
 
   /** Canvas element reference for touch event bridging */
   const canvasRef = useRef<any>(null);
+
+  /** Current design resolution scale result */
+  const designScaleRef = useRef<DesignScaleResult | null>(null);
+
+  /** Active touch identifiers for multi-touch detection */
+  const activeTouchesRef = useRef<Set<number>>(new Set());
 
   // ===========================================================================
   // IMPERATIVE HANDLE
@@ -250,12 +305,42 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
       // TODO: Implement using expo-gl's GLView.takeSnapshotAsync
       return '';
     },
+
+    getDesignScale: () => designScaleRef.current,
   }));
 
   // ===========================================================================
   // LAYOUT HANDLING
   // Resize renderer when component dimensions change.
   // ===========================================================================
+
+  /** Apply design resolution scale to the stage. */
+  const applyDesignScale = useCallback(
+    (app: Application, screenWidth: number, screenHeight: number) => {
+      if (!hasDesignResolution) return;
+
+      const scale = calculateDesignScale(
+        designWidth!,
+        designHeight!,
+        screenWidth,
+        screenHeight,
+        scaleMode,
+      );
+      designScaleRef.current = scale;
+
+      app.stage.scale.set(scale.scaleX, scale.scaleY);
+      app.stage.position.set(scale.offsetX, scale.offsetY);
+
+      if (__DEV__) {
+        console.log(
+          `[PixiView] Design resolution: ${designWidth}x${designHeight} → ` +
+            `scale(${scale.scaleX.toFixed(3)}, ${scale.scaleY.toFixed(3)}) ` +
+            `offset(${scale.offsetX.toFixed(1)}, ${scale.offsetY.toFixed(1)})`,
+        );
+      }
+    },
+    [hasDesignResolution, designWidth, designHeight, scaleMode],
+  );
 
   const handleLayout = useCallback(
     (event: LayoutChangeEvent) => {
@@ -266,9 +351,12 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
       if (appRef.current) {
         const res = resolution || PixelRatio.get();
         appRef.current.renderer.resize(width * res, height * res);
+
+        // Recalculate design resolution scaling
+        applyDesignScale(appRef.current, width, height);
       }
     },
-    [resolution],
+    [resolution, applyDesignScale],
   );
 
   // ===========================================================================
@@ -337,8 +425,10 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
 
       const pointerEvents = convertTouchToPointerEvents(event, 'pointerdown', {
         canvas: canvasRef.current,
-        resolution: 1, // We use logical units now
+        resolution: 1,
       });
+      // Track new touches
+      pointerEvents.forEach((e) => activeTouchesRef.current.add(e.pointerId));
       forwardPointerEvent(pointerEvents, 'pointerdown');
     },
     [interactiveEvents, forwardPointerEvent],
@@ -346,16 +436,45 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
 
   /**
    * Handle touch move events.
+   * Also detects new fingers (multi-touch) that arrive as move events
+   * because React Native's GestureResponder only fires onResponderGrant
+   * for the first finger.
    */
   const handleTouchMove = useCallback(
     (event: GestureResponderEvent) => {
       if (!interactiveEvents || !canvasRef.current) return;
 
-      const pointerEvents = convertTouchToPointerEvents(event, 'pointermove', {
+      const { nativeEvent } = event;
+      const changedTouches = nativeEvent.changedTouches ?? [nativeEvent];
+      const activeTouches = activeTouchesRef.current;
+
+      // Separate new touches (pointerdown) from existing touches (pointermove)
+      const newTouchIds = new Set<number>();
+      for (const touch of changedTouches) {
+        const id = Number(touch.identifier);
+        if (!activeTouches.has(id)) {
+          newTouchIds.add(id);
+          activeTouches.add(id);
+        }
+      }
+
+      if (newTouchIds.size > 0) {
+        // Emit pointerdown for newly detected fingers
+        const downEvents = convertTouchToPointerEvents(event, 'pointerdown', {
+          canvas: canvasRef.current,
+          resolution: 1,
+        }).filter((e) => newTouchIds.has(e.pointerId));
+        forwardPointerEvent(downEvents, 'pointerdown');
+      }
+
+      // Emit pointermove for existing fingers
+      const moveEvents = convertTouchToPointerEvents(event, 'pointermove', {
         canvas: canvasRef.current,
-        resolution: 1, // We use logical units now
-      });
-      forwardPointerEvent(pointerEvents, 'pointermove');
+        resolution: 1,
+      }).filter((e) => !newTouchIds.has(e.pointerId));
+      if (moveEvents.length > 0) {
+        forwardPointerEvent(moveEvents, 'pointermove');
+      }
     },
     [interactiveEvents, forwardPointerEvent],
   );
@@ -369,8 +488,10 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
 
       const pointerEvents = convertTouchToPointerEvents(event, 'pointerup', {
         canvas: canvasRef.current,
-        resolution: 1, // We use logical units now
+        resolution: 1,
       });
+      // Remove ended touches from tracking
+      pointerEvents.forEach((e) => activeTouchesRef.current.delete(e.pointerId));
       forwardPointerEvent(pointerEvents, 'pointerup');
     },
     [interactiveEvents, forwardPointerEvent],
@@ -385,9 +506,10 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
 
       const pointerEvents = convertTouchToPointerEvents(event, 'pointercancel', {
         canvas: canvasRef.current,
-        resolution: 1, // We use logical units now
+        resolution: 1,
       });
       forwardPointerEvent(pointerEvents, 'pointercancel');
+      activeTouchesRef.current.clear();
       clearTouchTracking();
     },
     [interactiveEvents, forwardPointerEvent],
@@ -487,6 +609,9 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
           },
         });
 
+        // Apply design resolution scaling to stage
+        applyDesignScale(app, logicalWidth, logicalHeight);
+
         // Notify application creation
         onApplicationCreate?.(app);
       } catch (error) {
@@ -494,7 +619,15 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
         onError?.(error as Error);
       }
     },
-    [backgroundColor, resolution, antialias, onApplicationCreate, onContextCreate, onError],
+    [
+      backgroundColor,
+      resolution,
+      antialias,
+      onApplicationCreate,
+      onContextCreate,
+      onError,
+      applyDesignScale,
+    ],
   );
 
   // ===========================================================================
@@ -527,6 +660,7 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
       canvasRef.current = null;
 
       // Clear touch tracking state
+      activeTouchesRef.current.clear();
       clearTouchTracking();
 
       // Clear active context from adapter

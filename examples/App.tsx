@@ -41,6 +41,14 @@ const manifest = createExpoManifest({
 const BITMAP_FONT_URL = 'https://pixijs.com/assets/bitmap-font/desyrel.xml';
 
 // =============================================================================
+// DESIGN RESOLUTION
+// Fixed coordinate system — all positions are in this space regardless of device
+// =============================================================================
+
+const DESIGN_WIDTH = 390;
+const DESIGN_HEIGHT = 844;
+
+// =============================================================================
 // BUNNY CONFIG
 // =============================================================================
 
@@ -70,8 +78,9 @@ export default function App() {
   const handleAppCreate = useCallback(async (app: Application) => {
     console.log('PixiJS Application created!');
 
-    const screenWidth = app.screen.width;
-    const screenHeight = app.screen.height;
+    // Use fixed design resolution coordinates — these are the same on every device
+    const screenWidth = DESIGN_WIDTH;
+    const screenHeight = DESIGN_HEIGHT;
 
     // =========================================================================
     // PHASE 1: Load screen bundle
@@ -134,7 +143,7 @@ export default function App() {
     app.stage.addChild(bg);
 
     app.stage.eventMode = 'static';
-    app.stage.hitArea = app.screen;
+    app.stage.hitArea = new Rectangle(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
 
     const mainContainer = new Container();
     app.stage.addChild(mainContainer);
@@ -252,13 +261,15 @@ export default function App() {
 
     app.stage.on('pointerdown', (e: FederatedPointerEvent) => {
       dot.visible = true;
-      dot.position.copyFrom(e.global);
+      const local = e.getLocalPosition(app.stage);
+      dot.position.set(local.x, local.y);
     });
 
     app.stage.on('pointermove', (e: FederatedPointerEvent) => {
-      if (dot.visible) dot.position.copyFrom(e.global);
+      const local = e.getLocalPosition(app.stage);
+      if (dot.visible) dot.position.set(local.x, local.y);
       const dragged = draggingMap.get(e.pointerId);
-      if (dragged) dragged.position.copyFrom(e.global);
+      if (dragged) dragged.position.set(local.x, local.y);
     });
 
     const onPointerUp = (e: FederatedPointerEvent) => {
@@ -291,7 +302,7 @@ export default function App() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Bundle + Direct Load Demo</Text>
+        <Text style={styles.title}>Design Resolution Demo</Text>
         <Text style={styles.fps}>FPS: {displayFps}</Text>
       </View>
       <View style={styles.touchInfoContainer}>
@@ -300,6 +311,9 @@ export default function App() {
       <PixiView
         style={styles.canvas}
         backgroundColor={0x1a1a1a}
+        designWidth={DESIGN_WIDTH}
+        designHeight={DESIGN_HEIGHT}
+        scaleMode="NO_BORDER"
         onApplicationCreate={handleAppCreate}
       />
       <StatusBar style="light" />
