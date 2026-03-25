@@ -1,6 +1,6 @@
 {
   "name": "@penabt/pixi-expo",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "PixiJS v8 adapter for React Native Expo. Enables hardware-accelerated 2D graphics using expo-gl WebGL context.",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

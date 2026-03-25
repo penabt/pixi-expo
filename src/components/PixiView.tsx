@@ -61,8 +61,11 @@ import {
 } from '../utils/touchEventBridge';
 import {
   calculateDesignScale,
+  calculateDesignSafeArea,
   type DesignScaleMode,
   type DesignScaleResult,
+  type SafeAreaInsets,
+  type DesignSafeArea,
 } from '../utils/designResolution';
 
 // =============================================================================
@@ -175,6 +178,40 @@ export interface PixiViewProps {
    * @default 'SHOW_ALL'
    */
   scaleMode?: DesignScaleMode;
+
+  /**
+   * Physical safe area insets in screen points.
+   * Pass the values from `useSafeAreaInsets()` (react-native-safe-area-context)
+   * or any other source.
+   *
+   * When set together with design resolution, `getSafeArea()` on the ref
+   * returns these insets converted to design resolution coordinates.
+   *
+   * @example
+   * ```tsx
+   * import { useSafeAreaInsets } from 'react-native-safe-area-context';
+   *
+   * function GameScreen() {
+   *   const insets = useSafeAreaInsets();
+   *   const pixiRef = useRef<PixiViewHandle>(null);
+   *
+   *   return (
+   *     <PixiView
+   *       ref={pixiRef}
+   *       designWidth={720}
+   *       designHeight={1280}
+   *       scaleMode="NO_BORDER"
+   *       safeAreaInsets={insets}
+   *       onApplicationCreate={(app) => {
+   *         const safe = pixiRef.current?.getSafeArea();
+   *         // Position UI within safe.top, safe.bottom, safe.left, safe.right
+   *       }}
+   *     />
+   *   );
+   * }
+   * ```
+   */
+  safeAreaInsets?: SafeAreaInsets;
 }
 
 /**
@@ -211,6 +248,13 @@ export interface PixiViewHandle {
    * @returns The scale result, or null if design resolution is not active
    */
   getDesignScale: () => DesignScaleResult | null;
+
+  /**
+   * Get safe area insets in design resolution coordinates.
+   * Requires both design resolution and safeAreaInsets prop to be set.
+   * @returns Safe area insets in design coordinates, or null if unavailable
+   */
+  getSafeArea: () => DesignSafeArea | null;
 }
 
 // =============================================================================
@@ -248,6 +292,7 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
     designWidth,
     designHeight,
     scaleMode = 'SHOW_ALL',
+    safeAreaInsets,
   } = props;
 
   /** Whether design resolution mode is active */
@@ -307,6 +352,21 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
     },
 
     getDesignScale: () => designScaleRef.current,
+
+    getSafeArea: () => {
+      const scale = designScaleRef.current;
+      const layout = layoutRef.current;
+      if (!scale || !safeAreaInsets || !hasDesignResolution || !layout.width) return null;
+
+      return calculateDesignSafeArea(
+        safeAreaInsets,
+        scale,
+        designWidth!,
+        designHeight!,
+        layout.width,
+        layout.height,
+      );
+    },
   }));
 
   // ===========================================================================

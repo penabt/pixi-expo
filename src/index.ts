@@ -183,8 +183,13 @@ export type { PixiViewProps, PixiViewHandle } from './components/PixiView';
 // Design resolution utilities for fixed coordinate systems.
 // =============================================================================
 
-export { calculateDesignScale } from './utils/designResolution';
-export type { DesignScaleMode, DesignScaleResult } from './utils/designResolution';
+export { calculateDesignScale, calculateDesignSafeArea } from './utils/designResolution';
+export type {
+  DesignScaleMode,
+  DesignScaleResult,
+  SafeAreaInsets,
+  DesignSafeArea,
+} from './utils/designResolution';
 
 // =============================================================================
 // EXPORTS: TOUCH EVENT BRIDGE

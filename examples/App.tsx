@@ -1,8 +1,10 @@
 import { useCallback, useRef, useEffect, useState } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   PixiView,
+  PixiViewHandle,
   Sprite,
   Application,
   Container,
@@ -39,8 +41,6 @@ const manifest = createExpoManifest({
 });
 
 // BitmapFont — local require() with registerBitmapFont
-// XML references "desyrel.png" internally, but Expo bundles with hashed paths,
-// so we register both the XML and its atlas page explicitly.
 const BITMAP_FONT_KEY = registerBitmapFont(require('./assets/desyrel.xml'), [
   require('./assets/desyrel.png'),
 ]);
@@ -68,7 +68,13 @@ function createBorder(w: number, h: number, color: number): Graphics {
   return new Graphics().rect(-w / 2 - 4, -h / 2 - 4, w + 8, h + 8).stroke({ color, width: 3 });
 }
 
-export default function App() {
+// =============================================================================
+// GAME SCREEN — uses safe area insets in design coordinates
+// =============================================================================
+
+function GameScreen() {
+  const insets = useSafeAreaInsets();
+  const pixiRef = useRef<PixiViewHandle>(null);
   const fpsRef = useRef(0);
   const [displayFps, setDisplayFps] = useState(0);
   const [touchInfo, setTouchInfo] = useState<string>('Loading assets...');
@@ -83,9 +89,23 @@ export default function App() {
   const handleAppCreate = useCallback(async (app: Application) => {
     console.log('PixiJS Application created!');
 
-    // Use fixed design resolution coordinates — these are the same on every device
     const screenWidth = DESIGN_WIDTH;
     const screenHeight = DESIGN_HEIGHT;
+
+    // =========================================================================
+    // GET SAFE AREA IN DESIGN COORDINATES
+    // =========================================================================
+
+    const safe = pixiRef.current?.getSafeArea();
+    const safeTop = safe?.top ?? 60;
+    const safeBottom = safe?.bottom ?? 40;
+    const safeLeft = safe?.left ?? 0;
+    const safeRight = safe?.right ?? 0;
+
+    console.log(
+      `[SafeArea] design coords: top=${safeTop.toFixed(1)} bottom=${safeBottom.toFixed(1)} ` +
+        `left=${safeLeft.toFixed(1)} right=${safeRight.toFixed(1)}`,
+    );
 
     // =========================================================================
     // PHASE 1: Load screen bundle
@@ -102,21 +122,21 @@ export default function App() {
     app.stage.addChild(logo);
 
     // =========================================================================
-    // PHASE 2: Load BitmapFont (local require() via registerBitmapFont)
+    // PHASE 2: Load BitmapFont
     // =========================================================================
 
     await Assets.load(BITMAP_FONT_KEY);
     console.log('BitmapFont loaded (local)');
 
     // =========================================================================
-    // PHASE 3: Game screen bundle (local + remote textures)
+    // PHASE 3: Game screen bundle
     // =========================================================================
 
     const gameAssets = await Assets.loadBundle('game-screen');
     console.log('Game bundle loaded:', Object.keys(gameAssets));
 
     // =========================================================================
-    // PHASE 4: Direct Assets.load — array with require() + remote URL
+    // PHASE 4: Direct Assets.load
     // =========================================================================
 
     const [directLocal, directRemote] = await Assets.load([
@@ -137,7 +157,7 @@ export default function App() {
     logo.destroy();
 
     // =========================================================================
-    // PHASE 5: Build game scene with BitmapText labels
+    // PHASE 5: Build game scene — positioned using safe area
     // =========================================================================
 
     const bg = new Sprite(Texture.WHITE);
@@ -149,6 +169,17 @@ export default function App() {
 
     app.stage.eventMode = 'static';
     app.stage.hitArea = new Rectangle(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
+
+    // --- Safe area debug visualization ---
+    const safeAreaDebug = new Graphics();
+    safeAreaDebug.rect(
+      safeLeft,
+      safeTop,
+      screenWidth - safeLeft - safeRight,
+      screenHeight - safeTop - safeBottom,
+    );
+    safeAreaDebug.stroke({ color: 0xffff00, width: 1, alpha: 0.5 });
+    app.stage.addChild(safeAreaDebug);
 
     const mainContainer = new Container();
     app.stage.addChild(mainContainer);
@@ -222,25 +253,30 @@ export default function App() {
       mainContainer.addChild(bunnyContainer);
     }
 
-    // Title text at top
+    // --- Title at top — positioned within safe area ---
     const title = new BitmapText({
       text: 'Bundle + Direct Load',
       style: { fontFamily: 'Desyrel', fontSize: 36 },
     });
     title.anchor.set(0.5);
     title.tint = 0xffffff;
-    title.position.set(screenWidth / 2, 30);
+    title.position.set(screenWidth / 2, safeTop + 20);
     app.stage.addChild(title);
+
+    // --- Safe area info label ---
+    const safeLabel = new BitmapText({
+      text: `Safe Area: T=${safeTop.toFixed(0)} B=${safeBottom.toFixed(0)} L=${safeLeft.toFixed(0)} R=${safeRight.toFixed(0)}`,
+      style: { fontFamily: 'Desyrel', fontSize: 20 },
+    });
+    safeLabel.anchor.set(0.5);
+    safeLabel.tint = 0xffff00;
+    safeLabel.position.set(screenWidth / 2, safeTop + 52);
+    app.stage.addChild(safeLabel);
 
     // =========================================================================
     // CANVAS 2D POLYFILL TEST
-    // PixiJS Text uses CanvasTextMetrics internally (context.font + measureText).
-    // The mock Canvas2D context prevents crashes — fillText is a no-op so the
-    // texture is transparent, but measureText() returns valid metrics.
     // =========================================================================
 
-    // Create a PixiJS Text object to exercise the Canvas2D polyfill path.
-    // This will NOT be visible (mock fillText is no-op) but must not crash.
     const _polyfillTest = new PixiText({
       text: 'Canvas2D Polyfill OK',
       style: new TextStyle({ fontSize: 20, fill: 0x00ff88 }),
@@ -248,14 +284,14 @@ export default function App() {
     console.log('Canvas2D polyfill test: Text created, measured width =', _polyfillTest.width);
     _polyfillTest.destroy();
 
-    // Visible confirmation via BitmapText (uses pre-rendered atlas, not Canvas2D)
+    // --- Bottom label — positioned within safe area ---
     const polyfillLabel = new BitmapText({
       text: 'Canvas2D Polyfill OK',
       style: { fontFamily: 'Desyrel', fontSize: 24 },
     });
     polyfillLabel.anchor.set(0.5);
     polyfillLabel.tint = 0x00ff88;
-    polyfillLabel.position.set(screenWidth / 2, screenHeight - 40);
+    polyfillLabel.position.set(screenWidth / 2, screenHeight - safeBottom - 16);
     app.stage.addChild(polyfillLabel);
 
     setTouchInfo('Drag the bunnies!');
@@ -306,37 +342,59 @@ export default function App() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Design Resolution Demo</Text>
-        <Text style={styles.fps}>FPS: {displayFps}</Text>
-      </View>
-      <View style={styles.touchInfoContainer}>
-        <Text style={styles.touchInfo}>{touchInfo}</Text>
-      </View>
       <PixiView
+        ref={pixiRef}
         style={styles.canvas}
         backgroundColor={0x0a0a1a}
         designWidth={DESIGN_WIDTH}
         designHeight={DESIGN_HEIGHT}
         scaleMode="NO_BORDER"
+        safeAreaInsets={insets}
         onApplicationCreate={handleAppCreate}
       />
+      {/* Overlay HUD — React Native views on top of PixiJS */}
+      <View style={styles.overlay} pointerEvents="none">
+        <View style={[styles.hud, { paddingTop: insets.top + 4 }]}>
+          <Text style={styles.title}>Safe Area Demo</Text>
+          <Text style={styles.fps}>FPS: {displayFps}</Text>
+        </View>
+        <View style={[styles.touchInfoContainer, { paddingBottom: insets.bottom + 4 }]}>
+          <Text style={styles.touchInfo}>{touchInfo}</Text>
+        </View>
+      </View>
       <StatusBar style="light" />
     </View>
+  );
+}
+
+// =============================================================================
+// ROOT — wraps with SafeAreaProvider
+// =============================================================================
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <GameScreen />
+    </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#000',
   },
-  header: {
+  canvas: {
+    flex: 1,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'space-between',
+  },
+  hud: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 60,
-    paddingBottom: 10,
     paddingHorizontal: 20,
   },
   title: {
@@ -350,15 +408,11 @@ const styles = StyleSheet.create({
   },
   touchInfoContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
     alignItems: 'center',
   },
   touchInfo: {
     color: '#ffcc00',
     fontSize: 16,
     fontWeight: '500',
-  },
-  canvas: {
-    flex: 1,
   },
 });

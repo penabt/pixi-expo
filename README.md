@@ -260,10 +260,9 @@ Use `registerBitmapFont()` to register the XML and its atlas page(s), then load 
 import { Assets, BitmapText, registerBitmapFont } from '@penabt/pixi-expo';
 
 // Register the font XML + atlas PNG(s) — call this at module level
-const FONT_KEY = registerBitmapFont(
-  require('./assets/myfont.xml'),
-  [require('./assets/myfont.png')],
-);
+const FONT_KEY = registerBitmapFont(require('./assets/myfont.xml'), [
+  require('./assets/myfont.png'),
+]);
 
 // Load inside your PixiView callback
 await Assets.load(FONT_KEY);
@@ -341,6 +340,92 @@ import { calculateDesignScale } from '@penabt/pixi-expo';
 const scale = calculateDesignScale(720, 1280, screenWidth, screenHeight, 'NO_BORDER');
 // scale.scaleX, scale.scaleY, scale.offsetX, scale.offsetY
 ```
+
+## Safe Area
+
+Built-in safe area support for positioning UI elements away from notches, dynamic islands, and home indicators — all in design resolution coordinates.
+
+### Setup
+
+Pass physical safe area insets to `PixiView` and read them back in design coordinates via the ref handle:
+
+```tsx
+import { useRef } from 'react';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PixiView, PixiViewHandle, BitmapText } from '@penabt/pixi-expo';
+
+function GameScreen() {
+  const insets = useSafeAreaInsets();
+  const pixiRef = useRef<PixiViewHandle>(null);
+
+  return (
+    <PixiView
+      ref={pixiRef}
+      designWidth={720}
+      designHeight={1280}
+      scaleMode="NO_BORDER"
+      safeAreaInsets={insets}
+      onApplicationCreate={(app) => {
+        // Insets are in design coordinates (720x1280 space)
+        const safe = pixiRef.current?.getSafeArea();
+        if (!safe) return;
+
+        // Position HUD within safe area
+        const score = new BitmapText({ text: 'Score: 0', style: { fontFamily: 'MyFont', fontSize: 32 } });
+        score.position.set(safe.left + 20, safe.top + 10);
+        app.stage.addChild(score);
+
+        // Bottom button above home indicator
+        const button = new BitmapText({ text: 'PLAY', style: { fontFamily: 'MyFont', fontSize: 48 } });
+        button.anchor.set(0.5);
+        button.position.set(360, 1280 - safe.bottom - 30);
+        app.stage.addChild(button);
+      }}
+    />
+  );
+}
+
+// Wrap your app with SafeAreaProvider
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <GameScreen />
+    </SafeAreaProvider>
+  );
+}
+```
+
+### How It Works
+
+`getSafeArea()` converts physical screen insets to your design coordinate space using the current stage transform:
+
+```
+designInset = (physicalInset - stageOffset) / stageScale
+```
+
+- **NO_BORDER**: Insets are larger because the cropped edges are accounted for
+- **SHOW_ALL**: Insets may be zero if the letterbox bars already cover the unsafe region
+- **EXACT_FIT**: Insets are scaled per-axis to match the stretch
+
+### Standalone Utility
+
+Use `calculateDesignSafeArea()` outside of `PixiView` for custom setups:
+
+```tsx
+import { calculateDesignScale, calculateDesignSafeArea } from '@penabt/pixi-expo';
+
+const scale = calculateDesignScale(720, 1280, screenW, screenH, 'NO_BORDER');
+const safe = calculateDesignSafeArea(physicalInsets, scale, 720, 1280, screenW, screenH);
+// safe.top, safe.bottom, safe.left, safe.right — all in 720x1280 space
+```
+
+### API
+
+| Prop / Method | Type | Description |
+| --- | --- | --- |
+| `safeAreaInsets` | `SafeAreaInsets` | Physical insets `{ top, bottom, left, right }` in screen points |
+| `getSafeArea()` | `() => DesignSafeArea \| null` | Returns insets in design coordinates (ref handle method) |
+| `calculateDesignSafeArea()` | `(insets, scale, dw, dh, sw, sh) => DesignSafeArea` | Standalone conversion utility |
 
 ## Performance Tips
 
