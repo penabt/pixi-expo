@@ -260,7 +260,7 @@ export const loadExpoAsset = {
 
       return new Texture({ source });
     } catch (error) {
-      console.error(`[loadExpoAsset] Failed to load: ${url}`, error);
+      if (__DEV__) console.error(`[loadExpoAsset] Failed to load: ${url}`, error);
       throw error;
     }
   },

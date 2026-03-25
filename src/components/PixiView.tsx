@@ -490,7 +490,7 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
         // Notify application creation
         onApplicationCreate?.(app);
       } catch (error) {
-        console.error('PixiJS initialization error:', error);
+        if (__DEV__) console.error('PixiJS initialization error:', error);
         onError?.(error as Error);
       }
     },
@@ -515,7 +515,7 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
         try {
           appRef.current.destroy(true, { children: true });
         } catch (error) {
-          console.warn('Error destroying PixiJS application:', error);
+          if (__DEV__) console.warn('Error destroying PixiJS application:', error);
         }
         appRef.current = null;
       }

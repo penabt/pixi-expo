@@ -11,6 +11,8 @@ import {
   Texture,
   Graphics,
   Assets,
+  Text as PixiText,
+  TextStyle,
   BitmapText,
   createExpoManifest,
 } from '@penabt/pixi-expo';
@@ -215,6 +217,32 @@ export default function App() {
     title.tint = 0xffffff;
     title.position.set(screenWidth / 2, 30);
     app.stage.addChild(title);
+
+    // =========================================================================
+    // CANVAS 2D POLYFILL TEST
+    // PixiJS Text uses CanvasTextMetrics internally (context.font + measureText).
+    // The mock Canvas2D context prevents crashes — fillText is a no-op so the
+    // texture is transparent, but measureText() returns valid metrics.
+    // =========================================================================
+
+    // Create a PixiJS Text object to exercise the Canvas2D polyfill path.
+    // This will NOT be visible (mock fillText is no-op) but must not crash.
+    const _polyfillTest = new PixiText({
+      text: 'Canvas2D Polyfill OK',
+      style: new TextStyle({ fontSize: 20, fill: 0x00ff88 }),
+    });
+    console.log('Canvas2D polyfill test: Text created, measured width =', _polyfillTest.width);
+    _polyfillTest.destroy();
+
+    // Visible confirmation via BitmapText (uses pre-rendered atlas, not Canvas2D)
+    const polyfillLabel = new BitmapText({
+      text: 'Canvas2D Polyfill OK',
+      style: { fontFamily: 'Desyrel', fontSize: 24 },
+    });
+    polyfillLabel.anchor.set(0.5);
+    polyfillLabel.tint = 0x00ff88;
+    polyfillLabel.position.set(screenWidth / 2, screenHeight - 40);
+    app.stage.addChild(polyfillLabel);
 
     setTouchInfo('Drag the bunnies!');
 

@@ -33,8 +33,7 @@
  */
 
 import type { ExpoWebGLRenderingContext } from 'expo-gl';
-
-// ...
+import { createMockCanvas2DContext } from './canvas2d';
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -332,27 +331,25 @@ export class ExpoCanvasElement {
       case 'webgl':
       case 'experimental-webgl':
         if (!this._gl) {
-          console.warn(
-            'ExpoCanvasElement: WebGL context not available. ' +
-              'Make sure GLView.onContextCreate has been called first.',
-          );
+          if (__DEV__)
+            console.warn(
+              'ExpoCanvasElement: WebGL context not available. ' +
+                'Make sure GLView.onContextCreate has been called first.',
+            );
           return null;
         }
         return this._gl as unknown as WebGLRenderingContext;
 
       case '2d':
-        console.warn(
-          'ExpoCanvasElement: 2D context is not supported in expo-gl. ' +
-            'Consider using @shopify/react-native-skia for 2D rendering.',
-        );
-        return null;
+        return createMockCanvas2DContext(this) as any;
 
       case 'webgl2':
       case 'experimental-webgl2':
-        console.warn(
-          'ExpoCanvasElement: WebGL2 is not fully supported in expo-gl. ' +
-            'Falling back to WebGL1.',
-        );
+        if (__DEV__)
+          console.warn(
+            'ExpoCanvasElement: WebGL2 is not fully supported in expo-gl. ' +
+              'Falling back to WebGL1.',
+          );
         return this._gl as unknown as WebGLRenderingContext;
 
       default:
@@ -378,7 +375,7 @@ export class ExpoCanvasElement {
    */
   toDataURL(_type?: string, _quality?: number): string {
     if (!this._gl) {
-      console.warn('ExpoCanvasElement: Cannot create data URL without GL context');
+      if (__DEV__) console.warn('ExpoCanvasElement: Cannot create data URL without GL context');
       return '';
     }
 
@@ -390,7 +387,8 @@ export class ExpoCanvasElement {
     this._gl.readPixels(0, 0, width, height, this._gl.RGBA, this._gl.UNSIGNED_BYTE, pixels);
 
     // Note: Full implementation would require encoding to PNG/JPEG
-    console.warn('ExpoCanvasElement: toDataURL requires additional implementation for encoding');
+    if (__DEV__)
+      console.warn('ExpoCanvasElement: toDataURL requires additional implementation for encoding');
 
     return '';
   }
@@ -404,7 +402,7 @@ export class ExpoCanvasElement {
    * @param _quality - Image quality (ignored)
    */
   toBlob(callback: (blob: Blob | null) => void, _type?: string, _quality?: number): void {
-    console.warn('ExpoCanvasElement: toBlob is not implemented');
+    if (__DEV__) console.warn('ExpoCanvasElement: toBlob is not implemented');
     callback(null);
   }
 
@@ -494,7 +492,7 @@ export class ExpoCanvasElement {
           listener.handleEvent(event);
         }
       } catch (error) {
-        console.error('[ExpoCanvasElement] Error in event listener:', error);
+        if (__DEV__) console.error('[ExpoCanvasElement] Error in event listener:', error);
       }
     });
 

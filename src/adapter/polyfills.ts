@@ -18,7 +18,8 @@
  * @remarks
  * These polyfills are intentionally minimal. They provide just enough
  * functionality for PixiJS to initialize and run, but not full browser
- * compatibility. Features like Canvas 2D context are not supported.
+ * compatibility. A mock Canvas 2D context is provided for text measurement
+ * (CanvasTextMetrics, BitmapFont, @pixi/ui) but does not perform actual drawing.
  */
 
 // =============================================================================
@@ -74,7 +75,7 @@ if (typeof (globalThis as any).dispatchEvent === 'undefined') {
         try {
           listener(event);
         } catch (e) {
-          console.error('Error in event listener:', e);
+          if (__DEV__) console.error('Error in event listener:', e);
         }
       });
     }
@@ -116,6 +117,12 @@ const createMockStyle = () => ({
 });
 
 // =============================================================================
+// MOCK CANVAS 2D CONTEXT (imported from shared module)
+// =============================================================================
+
+import { createMockCanvas2DContext } from './canvas2d';
+
+// =============================================================================
 // MOCK ELEMENT FACTORY
 // Creates HTMLElement-like objects for document.createElement compatibility.
 // =============================================================================
@@ -131,7 +138,10 @@ const createMockElement = (tagName: string) => {
   const element: any = {
     tagName: tagName.toUpperCase(),
     style: createMockStyle(),
-    getContext: () => null, // Canvas 2D not supported - use WebGL via expo-gl
+    getContext: (type: string) => {
+      if (type === '2d') return createMockCanvas2DContext(element);
+      return null; // WebGL contexts are provided by expo-gl via ExpoCanvasElement
+    },
     width: 0,
     height: 0,
     addEventListener: () => {},
@@ -306,7 +316,7 @@ export function dispatchWindowEvent(event: { type: string; [key: string]: any })
         listener.handleEvent(event);
       }
     } catch (error) {
-      console.error('[Window] Error in event listener:', error);
+      if (__DEV__) console.error('[Window] Error in event listener:', error);
     }
   });
 
@@ -399,8 +409,9 @@ if (typeof (globalThis as any).HTMLCanvasElement === 'undefined') {
     width = 0;
     height = 0;
     style = createMockStyle();
-    getContext() {
-      return null;
+    getContext(type: string) {
+      if (type === '2d') return createMockCanvas2DContext(this);
+      return null; // WebGL contexts are provided by expo-gl via ExpoCanvasElement
     }
   };
 }
@@ -572,4 +583,4 @@ if (!('ontouchend' in globalThis)) {
 // Confirm polyfills are loaded (useful for debugging).
 // =============================================================================
 
-console.log('PixiJS Expo Adapter: Polyfills loaded');
+if (__DEV__) console.log('PixiJS Expo Adapter: Polyfills loaded');

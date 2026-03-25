@@ -29,5 +29,5 @@
     "isolatedModules": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "lib", "my-pixi-app", "**/*.test.ts"]
+  "exclude": ["node_modules", "lib", "dist", "my-pixi-app", "src/example", "**/*.test.ts"]
 }

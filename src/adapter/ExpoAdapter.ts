@@ -33,6 +33,7 @@
 
 import type { ExpoWebGLRenderingContext } from 'expo-gl';
 import { ExpoCanvasElement } from './ExpoCanvasElement';
+import { createMockCanvas2DContext } from './canvas2d';
 import { DOMParser } from '@xmldom/xmldom';
 
 // =============================================================================
@@ -206,15 +207,16 @@ export const ExpoAdapter = {
   /**
    * Get the Canvas 2D rendering context constructor.
    *
-   * @returns null - Canvas 2D is not supported in expo-gl
-   *
-   * @remarks
-   * expo-gl only provides WebGL contexts. For 2D canvas operations,
-   * consider using @shopify/react-native-skia as an alternative.
+   * Returns a mock constructor whose instances provide the mock Canvas2D
+   * context. PixiJS accesses `CanvasRenderingContext2D.prototype` for
+   * feature detection, so returning `null` causes a crash.
    */
   getCanvasRenderingContext2D: (): any => {
-    console.warn('ExpoAdapter: 2D context is not supported in expo-gl');
-    return null;
+    return class MockCanvasRenderingContext2D {
+      constructor() {
+        return createMockCanvas2DContext({ width: 0, height: 0 });
+      }
+    };
   },
 
   /**
@@ -303,13 +305,13 @@ export const ExpoAdapter = {
 
     // Local file URL
     if (requestUrl.startsWith('file://')) {
-      console.warn('ExpoAdapter: Local file loading requires expo-file-system');
+      if (__DEV__) console.warn('ExpoAdapter: Local file loading requires expo-file-system');
       return fetch(requestUrl, options);
     }
 
     // Asset URL or require() number
     if (requestUrl.startsWith('asset://') || typeof url === 'number') {
-      console.warn('ExpoAdapter: Asset loading requires expo-asset');
+      if (__DEV__) console.warn('ExpoAdapter: Asset loading requires expo-asset');
       throw new Error('Asset loading not implemented');
     }
 

@@ -118,12 +118,12 @@ export const loadExpoFont = {
         [familyName]: fontSource,
       });
 
-      console.log(`Font loaded: ${familyName}`);
+      if (__DEV__) console.log(`Font loaded: ${familyName}`);
 
       // Return the font family name
       return familyName;
     } catch (error) {
-      console.error(`Failed to load font: ${url}`, error);
+      if (__DEV__) console.error(`Failed to load font: ${url}`, error);
       throw error;
     }
   },
@@ -133,7 +133,7 @@ export const loadExpoFont = {
    * Note: expo-font doesn't have an unload API
    */
   unload(fontFamily: string): void {
-    console.warn(`Font unloading is not supported in expo-font: ${fontFamily}`);
+    if (__DEV__) console.warn(`Font unloading is not supported in expo-font: ${fontFamily}`);
   },
 } as LoaderParser<string>;
 
