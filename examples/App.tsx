@@ -15,6 +15,7 @@ import {
   TextStyle,
   BitmapText,
   createExpoManifest,
+  registerBitmapFont,
 } from '@penabt/pixi-expo';
 
 // =============================================================================
@@ -37,8 +38,12 @@ const manifest = createExpoManifest({
   ],
 });
 
-// BitmapFont URL — PixiJS bitmap font parser loads .xml + atlas .png together
-const BITMAP_FONT_URL = 'https://pixijs.com/assets/bitmap-font/desyrel.xml';
+// BitmapFont — local require() with registerBitmapFont
+// XML references "desyrel.png" internally, but Expo bundles with hashed paths,
+// so we register both the XML and its atlas page explicitly.
+const BITMAP_FONT_KEY = registerBitmapFont(require('./assets/desyrel.xml'), [
+  require('./assets/desyrel.png'),
+]);
 
 // =============================================================================
 // DESIGN RESOLUTION
@@ -97,11 +102,11 @@ export default function App() {
     app.stage.addChild(logo);
 
     // =========================================================================
-    // PHASE 2: Load BitmapFont (remote .xml — parser auto-loads atlas .png)
+    // PHASE 2: Load BitmapFont (local require() via registerBitmapFont)
     // =========================================================================
 
-    await Assets.load(BITMAP_FONT_URL);
-    console.log('BitmapFont loaded');
+    await Assets.load(BITMAP_FONT_KEY);
+    console.log('BitmapFont loaded (local)');
 
     // =========================================================================
     // PHASE 3: Game screen bundle (local + remote textures)
@@ -310,7 +315,7 @@ export default function App() {
       </View>
       <PixiView
         style={styles.canvas}
-        backgroundColor={0x1a1a1a}
+        backgroundColor={0x0a0a1a}
         designWidth={DESIGN_WIDTH}
         designHeight={DESIGN_HEIGHT}
         scaleMode="NO_BORDER"

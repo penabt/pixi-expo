@@ -234,7 +234,9 @@ const powerups = await Assets.loadBundle('powerups');
 
 ### BitmapFont
 
-Load `.fnt` or `.xml` bitmap fonts — the atlas texture is loaded automatically:
+#### Remote Fonts
+
+Load `.fnt` or `.xml` bitmap fonts from a URL — the atlas texture is resolved automatically:
 
 ```tsx
 import { Assets, BitmapText } from '@penabt/pixi-expo';
@@ -246,6 +248,47 @@ const score = new BitmapText({
   style: { fontFamily: 'MyFont', fontSize: 32 },
 });
 app.stage.addChild(score);
+```
+
+#### Local Fonts — `registerBitmapFont()`
+
+Bundled bitmap fonts need explicit registration because Expo stores assets with hashed filenames — the XML's internal `<page file="atlas.png"/>` reference can't be resolved automatically.
+
+Use `registerBitmapFont()` to register the XML and its atlas page(s), then load via `Assets.load()`:
+
+```tsx
+import { Assets, BitmapText, registerBitmapFont } from '@penabt/pixi-expo';
+
+// Register the font XML + atlas PNG(s) — call this at module level
+const FONT_KEY = registerBitmapFont(
+  require('./assets/myfont.xml'),
+  [require('./assets/myfont.png')],
+);
+
+// Load inside your PixiView callback
+await Assets.load(FONT_KEY);
+
+const score = new BitmapText({
+  text: 'Score: 0',
+  style: { fontFamily: 'MyFont', fontSize: 32 },
+});
+app.stage.addChild(score);
+```
+
+> **Note:** Multi-page bitmap fonts are supported — pass all atlas PNGs in page order:
+> `registerBitmapFont(require('./font.xml'), [require('./page0.png'), require('./page1.png')])`
+
+#### Metro Configuration
+
+Bitmap font files (`.xml`, `.fnt`) must be registered as asset extensions in your `metro.config.js`:
+
+```js
+const { getDefaultConfig } = require('expo/metro-config');
+const config = getDefaultConfig(__dirname);
+
+config.resolver.assetExts = [...(config.resolver.assetExts || []), 'xml', 'fnt'];
+
+module.exports = config;
 ```
 
 ## Design Resolution

@@ -90,10 +90,12 @@ DOMAdapter.set(ExpoAdapter as any);
 
 import { loadExpoAsset, loadTexture, registerModuleId } from './adapter/loadExpoAsset';
 import { loadExpoFont } from './adapter/loadExpoFont';
+import { loadExpoBitmapFont, registerBitmapFont } from './adapter/loadExpoBitmapFont';
 
 extensions.remove(loadTextures);
 extensions.add(loadExpoAsset);
 extensions.add(loadExpoFont);
+extensions.add(loadExpoBitmapFont);
 
 // =============================================================================
 // PHASE 5: PATCH Assets.load TO ACCEPT require() IDs
@@ -149,6 +151,10 @@ export {
   loadTexture,
   /** Load fonts using expo-font */
   loadExpoFont,
+  /** Load bitmap fonts from local require() module IDs */
+  loadExpoBitmapFont,
+  /** Register a local bitmap font (XML/FNT + atlas pages) for Assets.load() */
+  registerBitmapFont,
 };
 
 // =============================================================================
