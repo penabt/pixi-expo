@@ -16,6 +16,7 @@
 
 import { Asset } from 'expo-asset';
 import { File } from 'expo-file-system';
+import { Platform, NativeModules } from 'react-native';
 import {
   ExtensionType,
   LoaderParserPriority,
@@ -90,6 +91,82 @@ export function registerBitmapFont(xmlModuleId: number, pageModuleIds: number[])
  * registerBitmapFont(). Runs at High priority to intercept before
  * PixiJS's built-in loadBitmapFont (which can't handle module IDs).
  */
+/** Read text from a URI using the most appropriate method */
+async function readTextFromUri(uri: string): Promise<string> {
+  console.log(`[bmfont] readTextFromUri: ${uri}`);
+
+  // android_asset or http(s) → use fetch (RN's fetch supports file:///android_asset/)
+  if (uri.startsWith('file:///android_asset/') || uri.startsWith('http://') || uri.startsWith('https://')) {
+    console.log(`[bmfont] Using fetch for: ${uri}`);
+    const response = await fetch(uri);
+    if (!response.ok) throw new Error(`HTTP ${response.status} for ${uri}`);
+    const text = await response.text();
+    console.log(`[bmfont] Fetch OK, length: ${text.length}`);
+    return text;
+  }
+
+  // file:// or absolute path → use expo-file-system File API
+  if (uri.startsWith('file://') || uri.startsWith('/')) {
+    const fileUri = uri.startsWith('/') ? `file://${uri}` : uri;
+    console.log(`[bmfont] Using File API for: ${fileUri}`);
+    const file = new File(fileUri);
+    const content = await file.text();
+    console.log(`[bmfont] File read OK, length: ${content.length}`);
+    return content;
+  }
+
+  throw new Error(`Unsupported URI scheme: ${uri.substring(0, 30)}`);
+}
+
+/**
+ * Get Metro dev server base URL from the JS bundle source URL.
+ * Returns null if not available (e.g., production build).
+ */
+function getMetroBaseUrl(): string | null {
+  try {
+    const scriptURL: string | undefined =
+      NativeModules.SourceCode?.getConstants?.()?.scriptURL ??
+      (NativeModules.SourceCode as any)?.scriptURL;
+    if (scriptURL) {
+      // scriptURL is like "http://192.168.1.105:8081/index.bundle?platform=android&..."
+      const match = scriptURL.match(/^(https?:\/\/[^/]+)/);
+      if (match) return match[1];
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * Generate candidate URIs for reading a font asset on Android.
+ * Includes both Metro HTTP URLs (dev) and APK asset paths (prod).
+ */
+function getAndroidAssetCandidates(asset: Asset): string[] {
+  const candidates: string[] = [];
+  const name = asset.name;
+  const type = asset.type;
+  const hash = asset.hash;
+
+  // In dev builds, Metro serves assets over HTTP
+  const metroBase = getMetroBaseUrl();
+  if (metroBase && name && type) {
+    // Metro asset URL patterns
+    candidates.push(`${metroBase}/assets/assets/fonts/${name}.${type}?platform=android`);
+    candidates.push(`${metroBase}/assets/fonts/${name}.${type}?platform=android`);
+  }
+
+  // file:///android_asset/ patterns for production builds
+  if (name && type) {
+    candidates.push(`file:///android_asset/assets/fonts/${name}.${type}`);
+    candidates.push(`file:///android_asset/fonts/${name}.${type}`);
+    candidates.push(`file:///android_asset/${name}.${type}`);
+  }
+  if (hash && type) {
+    candidates.push(`file:///android_asset/${hash}.${type}`);
+  }
+
+  return candidates;
+}
+
 export const loadExpoBitmapFont = {
   extension: {
     type: ExtensionType.LoadParser,
@@ -114,29 +191,63 @@ export const loadExpoBitmapFont = {
       throw new Error(`[loadExpoBitmapFont] No registered bitmap font for key: ${url}`);
     }
 
-    // Resolve XML module ID to local URI via expo-asset
     const expoAsset = Asset.fromModule(entry.xmlModuleId);
-    await expoAsset.downloadAsync();
+    const errors: string[] = [];
 
-    const localUri = expoAsset.localUri || expoAsset.uri;
-    if (!localUri) {
-      throw new Error(`[loadExpoBitmapFont] Failed to get local URI for XML asset`);
+    console.log(`[bmfont] === Loading ${url} ===`);
+    console.log(`[bmfont] moduleId: ${entry.xmlModuleId}`);
+    console.log(`[bmfont] name: ${expoAsset.name}`);
+    console.log(`[bmfont] type: ${expoAsset.type}`);
+    console.log(`[bmfont] hash: ${expoAsset.hash}`);
+    console.log(`[bmfont] localUri: ${expoAsset.localUri}`);
+    console.log(`[bmfont] uri: ${expoAsset.uri}`);
+    console.log(`[bmfont] downloaded: ${expoAsset.downloaded}`);
+    console.log(`[bmfont] Platform: ${Platform.OS}`);
+
+    // Strategy 1: localUri already available (iOS native builds)
+    if (expoAsset.localUri) {
+      console.log(`[bmfont] Strategy 1: localUri`);
+      try {
+        return await readTextFromUri(expoAsset.localUri);
+      } catch (e: any) { console.log(`[bmfont] Strategy 1 FAILED: ${e.message}`); errors.push(`localUri: ${e.message}`); }
     }
 
-    if (__DEV__) {
-      console.log(`[loadExpoBitmapFont] Loading XML from: ${localUri}`);
+    // Strategy 2: Android bundled asset — try multiple path patterns
+    if (Platform.OS === 'android') {
+      const candidates = getAndroidAssetCandidates(expoAsset);
+      console.log(`[bmfont] Strategy 2: trying ${candidates.length} android_asset candidates`);
+      console.log(`[bmfont] httpServerLocation: ${(expoAsset as any).httpServerLocation}`);
+      for (const candidate of candidates) {
+        try {
+          console.log(`[bmfont] Trying: ${candidate}`);
+          const content = await readTextFromUri(candidate);
+          console.log(`[bmfont] SUCCESS with: ${candidate}`);
+          return content;
+        } catch (e: any) {
+          console.log(`[bmfont] Failed: ${candidate} → ${e.message}`);
+        }
+      }
+      errors.push(`android_asset: all ${candidates.length} candidates failed`);
     }
 
-    // Read file content via expo-file-system's File API
-    // (React Native's fetch/XHR don't reliably support file:// URIs)
-    const file = new File(localUri);
-    const content = await file.text();
+    // Strategy 3: downloadAsync → localUri (works in Expo Go / dev client)
+    console.log(`[bmfont] Strategy 3: downloadAsync`);
+    try {
+      await expoAsset.downloadAsync();
+      console.log(`[bmfont] downloadAsync OK, localUri: ${expoAsset.localUri}`);
+      const uri = expoAsset.localUri || expoAsset.uri;
+      if (uri) return await readTextFromUri(uri);
+    } catch (e: any) { console.log(`[bmfont] Strategy 3 FAILED: ${e.message}`); errors.push(`downloadAsync: ${e.message}`); }
 
-    if (__DEV__) {
-      console.log(`[loadExpoBitmapFont] XML content length: ${content.length}`);
+    // Strategy 4: expo-asset uri (may be HTTP in dev, or asset:// scheme)
+    if (expoAsset.uri) {
+      console.log(`[bmfont] Strategy 4: uri → ${expoAsset.uri}`);
+      try {
+        return await readTextFromUri(expoAsset.uri);
+      } catch (e: any) { console.log(`[bmfont] Strategy 4 FAILED: ${e.message}`); errors.push(`uri(${expoAsset.uri.substring(0, 50)}): ${e.message}`); }
     }
 
-    return content;
+    throw new Error(`[loadExpoBitmapFont] All strategies failed for ${url}: ${errors.join('; ')}`);
   },
 
   async parse(asset: string, data: ResolvedAsset, loader: Loader): Promise<any> {
