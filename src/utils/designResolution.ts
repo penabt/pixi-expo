@@ -1,9 +1,13 @@
 /**
- * Design resolution scaling utilities.
+ * Design resolution utilities (Cocos2d-style).
  *
- * Provides design resolution support: define a fixed logical
- * size (e.g. 768×1024) and the library automatically scales the PixiJS stage
- * to fit the device screen.
+ * Instead of scaling the PixiJS stage, we set the renderer to operate in
+ * design coordinates and use PixiJS's `resolution` property to bridge
+ * the gap to physical pixels. This means:
+ *
+ * - Textures render at native device resolution (no GPU upscaling)
+ * - Game code works in a fixed coordinate space (e.g. 720×1280)
+ * - The stage has no scale transform — only a position offset for centering
  */
 
 /** How the design resolution maps to the physical screen. */
@@ -35,57 +39,98 @@ export interface DesignSafeArea {
   right: number;
 }
 
-/** Result of the design-to-screen scale calculation. */
+/**
+ * Result of the design-to-screen scale calculation.
+ *
+ * The renderer is initialised at `viewportWidth × viewportHeight` with the
+ * returned `resolution`.  Physical backing = viewport × resolution = screen.
+ * The stage receives only a position offset (and stageScale for EXACT_FIT).
+ */
 export interface DesignScaleResult {
-  /** Scale factor applied to stage X axis */
-  scaleX: number;
-  /** Scale factor applied to stage Y axis */
-  scaleY: number;
-  /** X offset for centering the stage (positive = letterbox, negative = crop) */
+  /** PixiJS resolution: physical pixels per logical (design) unit */
+  resolution: number;
+  /** Logical viewport width for the PixiJS renderer */
+  viewportWidth: number;
+  /** Logical viewport height for the PixiJS renderer */
+  viewportHeight: number;
+  /** Stage X position to centre the design area inside the viewport */
   offsetX: number;
-  /** Y offset for centering the stage */
+  /** Stage Y position to centre the design area inside the viewport */
   offsetY: number;
+  /** Stage scale X — 1.0 for SHOW_ALL / NO_BORDER, may differ for EXACT_FIT */
+  stageScaleX: number;
+  /** Stage scale Y — 1.0 for SHOW_ALL / NO_BORDER, may differ for EXACT_FIT */
+  stageScaleY: number;
 }
 
 /**
- * Calculate how to transform the PixiJS stage so that a fixed design
- * resolution maps onto the actual screen dimensions.
+ * Calculate how to set up the PixiJS renderer so that game code can work in
+ * a fixed design coordinate space while rendering at native device resolution.
  *
- * The renderer stays at the real screen size for full-quality rendering;
- * the returned values are applied to `app.stage.scale` and `app.stage.position`.
+ * @param designWidth  - Fixed design width  (e.g. 720)
+ * @param designHeight - Fixed design height (e.g. 1280)
+ * @param physicalWidth  - Physical screen width in pixels
+ * @param physicalHeight - Physical screen height in pixels
+ * @param scaleMode - How to handle aspect-ratio mismatch
+ * @returns Values to feed into PixiJS app.init() and stage transform
  */
 export function calculateDesignScale(
   designWidth: number,
   designHeight: number,
-  screenWidth: number,
-  screenHeight: number,
+  physicalWidth: number,
+  physicalHeight: number,
   scaleMode: DesignScaleMode,
 ): DesignScaleResult {
   switch (scaleMode) {
     case 'SHOW_ALL': {
-      const scale = Math.min(screenWidth / designWidth, screenHeight / designHeight);
+      // Use the smaller ratio so the entire design area is visible.
+      // The viewport is larger than the design area on one axis → letterbox.
+      const resolution = Math.min(physicalWidth / designWidth, physicalHeight / designHeight);
+      const viewportWidth = physicalWidth / resolution;
+      const viewportHeight = physicalHeight / resolution;
       return {
-        scaleX: scale,
-        scaleY: scale,
-        offsetX: (screenWidth - designWidth * scale) / 2,
-        offsetY: (screenHeight - designHeight * scale) / 2,
+        resolution,
+        viewportWidth,
+        viewportHeight,
+        offsetX: (viewportWidth - designWidth) / 2,
+        offsetY: (viewportHeight - designHeight) / 2,
+        stageScaleX: 1,
+        stageScaleY: 1,
       };
     }
     case 'NO_BORDER': {
-      const scale = Math.max(screenWidth / designWidth, screenHeight / designHeight);
+      // Use the larger ratio so the screen is completely filled.
+      // The viewport is smaller than the design area on one axis → edges cropped.
+      const resolution = Math.max(physicalWidth / designWidth, physicalHeight / designHeight);
+      const viewportWidth = physicalWidth / resolution;
+      const viewportHeight = physicalHeight / resolution;
       return {
-        scaleX: scale,
-        scaleY: scale,
-        offsetX: (screenWidth - designWidth * scale) / 2,
-        offsetY: (screenHeight - designHeight * scale) / 2,
+        resolution,
+        viewportWidth,
+        viewportHeight,
+        offsetX: (viewportWidth - designWidth) / 2,
+        offsetY: (viewportHeight - designHeight) / 2,
+        stageScaleX: 1,
+        stageScaleY: 1,
       };
     }
     case 'EXACT_FIT': {
+      // Non-uniform scaling: distort to fill exactly.
+      // PixiJS resolution is a single scalar, so we pick the larger axis ratio
+      // and compensate the other axis with a stage scale < 1.
+      const resX = physicalWidth / designWidth;
+      const resY = physicalHeight / designHeight;
+      const resolution = Math.max(resX, resY);
+      const viewportWidth = physicalWidth / resolution;
+      const viewportHeight = physicalHeight / resolution;
       return {
-        scaleX: screenWidth / designWidth,
-        scaleY: screenHeight / designHeight,
+        resolution,
+        viewportWidth,
+        viewportHeight,
         offsetX: 0,
         offsetY: 0,
+        stageScaleX: viewportWidth / designWidth,
+        stageScaleY: viewportHeight / designHeight,
       };
     }
   }
@@ -102,12 +147,11 @@ export function calculateDesignScale(
  * In SHOW_ALL mode with letterboxing, insets may be zero if the bars
  * already cover the unsafe region.
  *
- * @param insets - Physical safe area insets in screen points
+ * @param insets - Physical safe area insets in logical screen points
  * @param scale - The current design scale result from calculateDesignScale()
  * @param designWidth - The design resolution width
  * @param designHeight - The design resolution height
- * @param screenWidth - The physical screen width in points
- * @param screenHeight - The physical screen height in points
+ * @param pixelRatio - Device pixel ratio (PixelRatio.get())
  * @returns Safe area insets in design resolution coordinates
  */
 export function calculateDesignSafeArea(
@@ -115,35 +159,32 @@ export function calculateDesignSafeArea(
   scale: DesignScaleResult,
   designWidth: number,
   designHeight: number,
-  screenWidth: number,
-  screenHeight: number,
+  pixelRatio: number,
 ): DesignSafeArea {
-  // Convert screen-space safe boundaries to design coordinates.
-  //
-  // Screen point → design point: (screenPt - offset) / scale
-  //
-  // Safe boundaries in screen space:
-  //   safeLeft   = insets.left
-  //   safeTop    = insets.top
-  //   safeRight  = screenWidth - insets.right
-  //   safeBottom = screenHeight - insets.bottom
-  //
-  // In design space:
-  //   safeLeft_d   = (insets.left - offsetX) / scaleX
-  //   safeTop_d    = (insets.top - offsetY) / scaleY
-  //   safeRight_d  = (screenWidth - insets.right - offsetX) / scaleX
-  //   safeBottom_d = (screenHeight - insets.bottom - offsetY) / scaleY
-  //
-  // Design insets = distance from design edges (0,0)→(designWidth,designHeight):
-  //   left   = safeLeft_d
-  //   top    = safeTop_d
-  //   right  = designWidth - safeRight_d
-  //   bottom = designHeight - safeBottom_d
+  const { resolution, viewportWidth, viewportHeight, offsetX, offsetY, stageScaleX, stageScaleY } =
+    scale;
 
-  const left = (insets.left - scale.offsetX) / scale.scaleX;
-  const top = (insets.top - scale.offsetY) / scale.scaleY;
-  const right = designWidth - (screenWidth - insets.right - scale.offsetX) / scale.scaleX;
-  const bottom = designHeight - (screenHeight - insets.bottom - scale.offsetY) / scale.scaleY;
+  // Physical screen dimensions (recoverable from viewport × resolution)
+  const physicalWidth = viewportWidth * resolution;
+  const physicalHeight = viewportHeight * resolution;
+
+  // Convert logical inset (screen points) → physical → viewport → design
+  //
+  // viewport_coord = physical / resolution
+  // design_coord   = (viewport_coord - offsetX) / stageScaleX
+  //
+  // For SHOW_ALL / NO_BORDER stageScale is 1, so design = viewport - offset.
+
+  const left =
+    (insets.left * pixelRatio / resolution - offsetX) / stageScaleX;
+  const top =
+    (insets.top * pixelRatio / resolution - offsetY) / stageScaleY;
+  const right =
+    designWidth -
+    ((physicalWidth - insets.right * pixelRatio) / resolution - offsetX) / stageScaleX;
+  const bottom =
+    designHeight -
+    ((physicalHeight - insets.bottom * pixelRatio) / resolution - offsetY) / stageScaleY;
 
   // Clamp to zero — if the letterbox bars already cover the unsafe region,
   // the design area is fully safe on that edge.

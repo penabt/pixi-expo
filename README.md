@@ -292,7 +292,7 @@ module.exports = config;
 
 ## Design Resolution
 
-Fixed coordinate system for your game. Define a virtual resolution and the library automatically scales the stage to fit any device screen.
+fFixed coordinate system for your game. Define a virtual resolution and the library renders at native device quality — no GPU texture stretching.
 
 ```tsx
 <PixiView
@@ -319,11 +319,11 @@ Fixed coordinate system for your game. Define a virtual resolution and the libra
 
 ### How It Works
 
-The renderer runs at the device's real screen size for full quality. The stage is transformed (scaled + positioned) so your game logic always works in the design coordinate space.
+The renderer operates directly in design coordinates and uses PixiJS's `resolution` property to bridge to physical pixels. Textures render at native device resolution with no GPU upscaling artifacts.
 
-- **NO_BORDER**: `scale = max(screenW/designW, screenH/designH)` — uniform scale, no gaps, edges cropped
-- **SHOW_ALL**: `scale = min(screenW/designW, screenH/designH)` — uniform scale, no crop, bars on short axis
-- **EXACT_FIT**: `scaleX = screenW/designW, scaleY = screenH/designH` — non-uniform, fills exactly
+- **NO_BORDER**: `resolution = max(physicalW/designW, physicalH/designH)` — viewport smaller than design, edges cropped
+- **SHOW_ALL**: `resolution = min(physicalW/designW, physicalH/designH)` — viewport larger than design, letterbox bars
+- **EXACT_FIT**: `resolution = max(resX, resY)` with per-axis stage scale compensation for the non-uniform axis
 
 ### Design Tips
 
@@ -337,8 +337,8 @@ The renderer runs at the device's real screen size for full quality. The stage i
 ```tsx
 import { calculateDesignScale } from '@penabt/pixi-expo';
 
-const scale = calculateDesignScale(720, 1280, screenWidth, screenHeight, 'NO_BORDER');
-// scale.scaleX, scale.scaleY, scale.offsetX, scale.offsetY
+const scale = calculateDesignScale(720, 1280, physicalWidth, physicalHeight, 'NO_BORDER');
+// scale.resolution, scale.viewportWidth, scale.viewportHeight, scale.offsetX, scale.offsetY
 ```
 
 ## Safe Area
@@ -397,10 +397,11 @@ export default function App() {
 
 ### How It Works
 
-`getSafeArea()` converts physical screen insets to your design coordinate space using the current stage transform:
+`getSafeArea()` converts physical screen insets to your design coordinate space through the resolution pipeline:
 
 ```
-designInset = (physicalInset - stageOffset) / stageScale
+viewport_coord = physicalInset × pixelRatio / resolution
+design_coord   = (viewport_coord - stageOffset) / stageScale
 ```
 
 - **NO_BORDER**: Insets are larger because the cropped edges are accounted for
@@ -413,9 +414,10 @@ Use `calculateDesignSafeArea()` outside of `PixiView` for custom setups:
 
 ```tsx
 import { calculateDesignScale, calculateDesignSafeArea } from '@penabt/pixi-expo';
+import { PixelRatio } from 'react-native';
 
-const scale = calculateDesignScale(720, 1280, screenW, screenH, 'NO_BORDER');
-const safe = calculateDesignSafeArea(physicalInsets, scale, 720, 1280, screenW, screenH);
+const scale = calculateDesignScale(720, 1280, physicalW, physicalH, 'NO_BORDER');
+const safe = calculateDesignSafeArea(insets, scale, 720, 1280, PixelRatio.get());
 // safe.top, safe.bottom, safe.left, safe.right — all in 720x1280 space
 ```
 
@@ -425,7 +427,7 @@ const safe = calculateDesignSafeArea(physicalInsets, scale, 720, 1280, screenW, 
 | --- | --- | --- |
 | `safeAreaInsets` | `SafeAreaInsets` | Physical insets `{ top, bottom, left, right }` in screen points |
 | `getSafeArea()` | `() => DesignSafeArea \| null` | Returns insets in design coordinates (ref handle method) |
-| `calculateDesignSafeArea()` | `(insets, scale, dw, dh, sw, sh) => DesignSafeArea` | Standalone conversion utility |
+| `calculateDesignSafeArea()` | `(insets, scale, dw, dh, pixelRatio) => DesignSafeArea` | Standalone conversion utility |
 
 ## Performance Tips
 

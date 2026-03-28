@@ -298,6 +298,9 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
   /** Whether design resolution mode is active */
   const hasDesignResolution = designWidth != null && designHeight != null;
 
+  /** Cached pixel ratio for safe area calculations */
+  const pixelRatioRef = useRef<number>(PixelRatio.get());
+
   // ===========================================================================
   // REFS
   // ===========================================================================
@@ -355,16 +358,14 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
 
     getSafeArea: () => {
       const scale = designScaleRef.current;
-      const layout = layoutRef.current;
-      if (!scale || !safeAreaInsets || !hasDesignResolution || !layout.width) return null;
+      if (!scale || !safeAreaInsets || !hasDesignResolution) return null;
 
       return calculateDesignSafeArea(
         safeAreaInsets,
         scale,
         designWidth!,
         designHeight!,
-        layout.width,
-        layout.height,
+        pixelRatioRef.current,
       );
     },
   }));
@@ -374,27 +375,39 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
   // Resize renderer when component dimensions change.
   // ===========================================================================
 
-  /** Apply design resolution scale to the stage. */
+  /**
+   * Apply design resolution to renderer and stage.
+   *
+   * Cocos2d-style: the renderer operates in design coordinates,
+   * `resolution` bridges to physical pixels. The stage gets only
+   * a position offset (no scale for SHOW_ALL / NO_BORDER).
+   */
   const applyDesignScale = useCallback(
-    (app: Application, screenWidth: number, screenHeight: number) => {
+    (app: Application, physicalWidth: number, physicalHeight: number) => {
       if (!hasDesignResolution) return;
 
       const scale = calculateDesignScale(
         designWidth!,
         designHeight!,
-        screenWidth,
-        screenHeight,
+        physicalWidth,
+        physicalHeight,
         scaleMode,
       );
       designScaleRef.current = scale;
 
-      app.stage.scale.set(scale.scaleX, scale.scaleY);
+      // Set renderer to design-space viewport with native resolution
+      app.renderer.resolution = scale.resolution;
+      app.renderer.resize(scale.viewportWidth, scale.viewportHeight);
+
+      // Stage: only offset (+ scale for EXACT_FIT, 1.0 otherwise)
+      app.stage.scale.set(scale.stageScaleX, scale.stageScaleY);
       app.stage.position.set(scale.offsetX, scale.offsetY);
 
       if (__DEV__) {
         console.log(
           `[PixiView] Design resolution: ${designWidth}x${designHeight} → ` +
-            `scale(${scale.scaleX.toFixed(3)}, ${scale.scaleY.toFixed(3)}) ` +
+            `viewport(${scale.viewportWidth.toFixed(1)}x${scale.viewportHeight.toFixed(1)}) ` +
+            `resolution(${scale.resolution.toFixed(3)}) ` +
             `offset(${scale.offsetX.toFixed(1)}, ${scale.offsetY.toFixed(1)})`,
         );
       }
@@ -407,16 +420,26 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
       const { width, height } = event.nativeEvent.layout;
       layoutRef.current = { width, height };
 
-      // Update PixiJS renderer if app exists
       if (appRef.current) {
-        const res = resolution || PixelRatio.get();
-        appRef.current.renderer.resize(width * res, height * res);
+        const pixelRatio = PixelRatio.get();
+        pixelRatioRef.current = pixelRatio;
 
-        // Recalculate design resolution scaling
-        applyDesignScale(appRef.current, width, height);
+        if (hasDesignResolution) {
+          // Use GL buffer as the source of truth for physical dimensions.
+          // layout.width * pixelRatio may differ from drawingBufferWidth due to
+          // navigation bars, rounding, or sub-pixel layout — causing a black strip.
+          const gl = glRef.current;
+          const physW = gl ? gl.drawingBufferWidth : width * pixelRatio;
+          const physH = gl ? gl.drawingBufferHeight : height * pixelRatio;
+          applyDesignScale(appRef.current, physW, physH);
+        } else {
+          // No design resolution — resize renderer to logical screen size
+          // (renderer multiplies by its own resolution internally with autoDensity)
+          appRef.current.renderer.resize(width, height);
+        }
       }
     },
-    [resolution, applyDesignScale],
+    [hasDesignResolution, applyDesignScale],
   );
 
   // ===========================================================================
@@ -584,24 +607,44 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
     async (gl: ExpoWebGLRenderingContext) => {
       glRef.current = gl;
 
-      // PixiJS resolution handling for high-DPI (Retina) screens:
-      // PixiJS resolution handling for high-DPI (Retina) screens:
       const pixelRatio = PixelRatio.get();
+      pixelRatioRef.current = pixelRatio;
       const { width: layoutWidth, height: layoutHeight } = layoutRef.current;
 
-      // Default logical dimensions for PixiJS Application
-      const logicalWidth = layoutWidth || gl.drawingBufferWidth / pixelRatio;
-      const logicalHeight = layoutHeight || gl.drawingBufferHeight / pixelRatio;
-
-      const res = resolution || pixelRatio;
-
-      // Physical dimensions for the Canvas wrapper
+      // Physical dimensions from the GL backing store
       const physicalWidth = gl.drawingBufferWidth;
       const physicalHeight = gl.drawingBufferHeight;
 
+      // Determine initial renderer dimensions and resolution
+      let initWidth: number;
+      let initHeight: number;
+      let initRes: number;
+
+      if (hasDesignResolution) {
+        // Cocos2d-style: renderer operates in design-space coordinates,
+        // resolution bridges to physical pixels.
+        const scale = calculateDesignScale(
+          designWidth!,
+          designHeight!,
+          physicalWidth,
+          physicalHeight,
+          scaleMode,
+        );
+        designScaleRef.current = scale;
+        initWidth = scale.viewportWidth;
+        initHeight = scale.viewportHeight;
+        initRes = scale.resolution;
+      } else {
+        // No design resolution — use logical screen dimensions
+        initWidth = layoutWidth || physicalWidth / pixelRatio;
+        initHeight = layoutHeight || physicalHeight / pixelRatio;
+        initRes = resolution || pixelRatio;
+      }
+
       if (__DEV__) {
         console.log(
-          `[PixiView] Init: Logical ${logicalWidth}x${logicalHeight} @ ${res}x (Physical ${physicalWidth}x${physicalHeight})`,
+          `[PixiView] Init: Viewport ${initWidth.toFixed(1)}x${initHeight.toFixed(1)} ` +
+            `@ ${initRes.toFixed(3)}x (Physical ${physicalWidth}x${physicalHeight})`,
         );
       }
 
@@ -609,9 +652,9 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
       // This ensures ExpoCanvasElement reports the full backing store size
       const canvas = setActiveGLContext(gl, physicalWidth, physicalHeight);
 
-      // Set style to logical size (PixiJS autoDensity relies on this relation)
-      canvas.style.width = `${logicalWidth}px`;
-      canvas.style.height = `${logicalHeight}px`;
+      // Set style to viewport size (PixiJS autoDensity relies on this relation)
+      canvas.style.width = `${initWidth}px`;
+      canvas.style.height = `${initHeight}px`;
 
       canvasRef.current = canvas;
 
@@ -623,23 +666,29 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
         const app = new Application();
 
         await app.init({
-          width: logicalWidth,
-          height: logicalHeight,
+          width: initWidth,
+          height: initHeight,
           backgroundColor,
-          resolution: res,
+          resolution: initRes,
           antialias,
           canvas: canvas as any,
           autoStart: true,
           sharedTicker: true,
-          autoDensity: true, // This will keep canvas.style updated to logical units
+          autoDensity: true,
           hello: true,
         });
 
         appRef.current = app;
 
+        // Apply stage offset (and scale for EXACT_FIT)
+        if (hasDesignResolution) {
+          const scale = designScaleRef.current!;
+          app.stage.scale.set(scale.stageScaleX, scale.stageScaleY);
+          app.stage.position.set(scale.offsetX, scale.offsetY);
+        }
+
         // Ensure EventSystem is properly set up with our canvas
         if (app.renderer.events) {
-          // Re-set target element to ensure event listeners are attached
           const eventSystem = app.renderer.events as any;
           if (eventSystem.setTargetElement) {
             eventSystem.setTargetElement(canvas);
@@ -649,7 +698,6 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
           }
 
           if (__DEV__) {
-            // Debug: log registered events
             setTimeout(() => {
               console.log(
                 '[PixiView] Canvas registered events:',
@@ -660,7 +708,6 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
         }
 
         // Hook into PixiJS render cycle to call endFrameEXP
-        // This is more efficient than a separate render loop
         app.renderer.runners.postrender.add({
           postrender: () => {
             if (glRef.current) {
@@ -668,9 +715,6 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
             }
           },
         });
-
-        // Apply design resolution scaling to stage
-        applyDesignScale(app, logicalWidth, logicalHeight);
 
         // Notify application creation
         onApplicationCreate?.(app);
@@ -683,10 +727,13 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
       backgroundColor,
       resolution,
       antialias,
+      hasDesignResolution,
+      designWidth,
+      designHeight,
+      scaleMode,
       onApplicationCreate,
       onContextCreate,
       onError,
-      applyDesignScale,
     ],
   );
 
@@ -745,10 +792,17 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
       }
     : {};
 
+  // Convert PixiJS hex color to CSS for the container background.
+  // This eliminates visible gaps from sub-pixel layout rounding between
+  // the React Native View and the GLView.
+  const bgStyle = backgroundColor != null
+    ? { backgroundColor: `#${backgroundColor.toString(16).padStart(6, '0')}` }
+    : undefined;
+
   return (
     <View
       ref={containerRef}
-      style={[styles.container, style]}
+      style={[styles.container, style, bgStyle]}
       onLayout={handleLayout}
       {...touchResponderProps}
     >
