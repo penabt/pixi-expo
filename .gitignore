@@ -34,3 +34,5 @@ docs/
 example.api.json*
 /CLAUDE.md
 /.claude/
+android
+ios

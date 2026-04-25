@@ -9,6 +9,7 @@
  */
 
 import { Asset } from 'expo-asset';
+import { File, Paths } from 'expo-file-system';
 import { Image } from 'react-native';
 import { ExtensionType, Texture, ImageSource, LoaderParserPriority } from 'pixi.js';
 
@@ -91,6 +92,76 @@ function getImageSize(uri: string): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
     Image.getSize(uri, (width, height) => resolve({ width, height }), reject);
   });
+}
+
+/**
+ * Resolve an Asset to a real `file://` path on disk.
+ *
+ * In Android release builds, `Asset.fromModule(...)` returns a URI like
+ * `android.resource://<pkg>/drawable/<name>` (for images bundled into res/)
+ * or `asset:///<path>` (for files bundled into assets/). expo-gl's native
+ * `texImage2D` uses `BitmapFactory.decodeFile(path)` which only accepts a
+ * real filesystem path — it cannot read those URIs and produces an empty
+ * texture (= invisible image).
+ *
+ * This helper guarantees a `file://` URI by copying the bundled asset into
+ * the app's cache directory the first time it's requested. Subsequent calls
+ * reuse the cached copy.
+ */
+export async function materializeToFile(expoAsset: Asset): Promise<string> {
+  // Android quirk: for bundled images, `Asset.fromModule(...)` sets
+  //   localUri = uri = "<drawable_name>"  (a bare resource name, NOT a URI)
+  //   downloaded = true                    (so downloadAsync() short-circuits)
+  // The native AssetModule.downloadAsync DOES know how to extract such
+  // resources into cache (returning a real file://), but it's never called
+  // because of the early-return. Force it by clearing the flag and retrying.
+  const initial = expoAsset.localUri ?? expoAsset.uri;
+  if (initial && !initial.includes('://')) {
+    (expoAsset as { downloaded: boolean }).downloaded = false;
+    (expoAsset as { localUri: string | null }).localUri = null;
+    await expoAsset.downloadAsync();
+  }
+
+  const candidate = expoAsset.localUri ?? expoAsset.uri;
+  if (!candidate) {
+    throw new Error('Asset has no URI after downloadAsync()');
+  }
+
+  // Already a real on-disk file (dev builds, iOS, or post-materialize).
+  // Note: `file:///android_asset/...` is NOT a real file — it's a virtual
+  // path into the APK's assets/ directory and must still be copied out.
+  if (candidate.startsWith('file://') && !candidate.startsWith('file:///android_asset/')) {
+    return candidate;
+  }
+
+  const ext = expoAsset.type || 'bin';
+  const baseName = expoAsset.hash
+    ? `${expoAsset.hash}.${ext}`
+    : `${expoAsset.name ?? 'asset'}_${Date.now()}.${ext}`;
+  const dest = new File(Paths.cache, 'pixi-expo', baseName);
+
+  if (dest.exists) return dest.uri;
+
+  dest.parentDirectory.create({ intermediates: true, idempotent: true });
+
+  // Try the native copy first — works for android.resource:// and content://
+  // via ContentResolver, and for file:// directly.
+  try {
+    new File(candidate).copy(dest);
+    return dest.uri;
+  } catch {
+    // Fall through to fetch fallback
+  }
+
+  // Fallback for schemes File.copy can't handle (asset://, file:///android_asset/, http(s)://).
+  const res = await fetch(candidate);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch asset ${candidate}: HTTP ${res.status}`);
+  }
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  dest.create({ overwrite: true });
+  dest.write(bytes);
+  return dest.uri;
 }
 
 /**
@@ -202,7 +273,7 @@ export const loadExpoAsset = {
         const expoAsset = Asset.fromModule(moduleId);
         await expoAsset.downloadAsync();
 
-        localUri = expoAsset.localUri || expoAsset.uri;
+        localUri = await materializeToFile(expoAsset);
         width = expoAsset.width ?? undefined;
         height = expoAsset.height ?? undefined;
       } else if (isRemoteUrl(resolvedUrl)) {
@@ -210,7 +281,7 @@ export const loadExpoAsset = {
         const expoAsset = Asset.fromURI(resolvedUrl);
         await expoAsset.downloadAsync();
 
-        localUri = expoAsset.localUri || expoAsset.uri;
+        localUri = await materializeToFile(expoAsset);
         width = expoAsset.width ?? undefined;
         height = expoAsset.height ?? undefined;
       } else {
@@ -218,7 +289,7 @@ export const loadExpoAsset = {
         const expoAsset = Asset.fromURI(resolvedUrl);
         await expoAsset.downloadAsync();
 
-        localUri = expoAsset.localUri || expoAsset.uri;
+        localUri = await materializeToFile(expoAsset);
         width = expoAsset.width ?? undefined;
         height = expoAsset.height ?? undefined;
       }
