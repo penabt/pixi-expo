@@ -41,7 +41,10 @@ const manifest = createExpoManifest({
 });
 
 // BitmapFont — local require() with registerBitmapFont
-const BITMAP_FONT_KEY = registerBitmapFont(require('./assets/desyrel.xml'), [
+// NOTE: .xml extension is special-cased by Android's asset bundler — it goes
+// into res/drawable/ and AAPT2 compiles it to binary XML, breaking text parsing.
+// Use .fnt instead so the file lands in assets/ as raw bytes.
+const BITMAP_FONT_KEY = registerBitmapFont(require('./assets/desyrel-data.fnt'), [
   require('./assets/desyrel.png'),
 ]);
 

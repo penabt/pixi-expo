@@ -252,15 +252,15 @@ app.stage.addChild(score);
 
 #### Local Fonts — `registerBitmapFont()`
 
-Bundled bitmap fonts need explicit registration because Expo stores assets with hashed filenames — the XML's internal `<page file="atlas.png"/>` reference can't be resolved automatically.
+Bundled bitmap fonts need explicit registration because Expo stores assets with hashed filenames — the font definition's internal `<page file="atlas.png"/>` reference can't be resolved automatically.
 
-Use `registerBitmapFont()` to register the XML and its atlas page(s), then load via `Assets.load()`:
+Use `registerBitmapFont()` to register the font definition and its atlas page(s), then load via `Assets.load()`:
 
 ```tsx
 import { Assets, BitmapText, registerBitmapFont } from '@penabt/pixi-expo';
 
-// Register the font XML + atlas PNG(s) — call this at module level
-const FONT_KEY = registerBitmapFont(require('./assets/myfont.xml'), [
+// Register the font + atlas PNG(s) — call this at module level
+const FONT_KEY = registerBitmapFont(require('./assets/myfont.fnt'), [
   require('./assets/myfont.png'),
 ]);
 
@@ -275,20 +275,39 @@ app.stage.addChild(score);
 ```
 
 > **Note:** Multi-page bitmap fonts are supported — pass all atlas PNGs in page order:
-> `registerBitmapFont(require('./font.xml'), [require('./page0.png'), require('./page1.png')])`
+> `registerBitmapFont(require('./font.fnt'), [require('./page0.png'), require('./page1.png')])`
+
+#### ⚠️ Use `.fnt`, not `.xml` — Android prebuild caveat
+
+**Always save your font definition file with the `.fnt` extension**, even if its content is XML (BMFont's XML format is valid `.fnt` content).
+
+In Android prebuild release builds, React Native's asset bundler treats `.xml` files as Android **drawable resources** and routes them to `res/drawable-mdpi/`. AAPT2 then compiles them into a binary XML format that text parsers can't read — the file would silently load but render as empty glyphs at runtime. `.fnt` files have no special meaning to AAPT2 and are bundled as raw bytes into `assets/`, so they round-trip cleanly to PixiJS's XML parser.
+
+If you're migrating from a `.xml` font file, just rename the file:
+
+```sh
+mv assets/myfont.xml assets/myfont.fnt
+```
+
+The file content stays the same — PixiJS detects the format from the bytes, not the extension.
+
+This only affects local bundled fonts in **release builds** with prebuild. Dev mode and Expo Go work with either extension because Metro serves the file directly over HTTP, bypassing AAPT2.
 
 #### Metro Configuration
 
-Bitmap font files (`.xml`, `.fnt`) must be registered as asset extensions in your `metro.config.js`:
+Bitmap font files must be registered as asset extensions in your `metro.config.js`:
 
 ```js
 const { getDefaultConfig } = require('expo/metro-config');
 const config = getDefaultConfig(__dirname);
 
-config.resolver.assetExts = [...(config.resolver.assetExts || []), 'xml', 'fnt'];
+config.resolver.assetExts = [...(config.resolver.assetExts || []), 'fnt'];
 
 module.exports = config;
 ```
+
+> If you must keep `.xml` for some reason (e.g. remote fonts), include it too:
+> `[...assetExts, 'fnt', 'xml']`. Local `.xml` fonts will still break in Android prebuild release builds — see the caveat above.
 
 ## Design Resolution
 
@@ -445,7 +464,8 @@ const safe = calculateDesignSafeArea(insets, scale, 720, 1280, PixelRatio.get())
 
 - **No Canvas 2D** — expo-gl only supports WebGL, not Canvas 2D context
 - **No Text** — `Text` (canvas-based) and `HTMLText` are not available. Use `BitmapText` instead
-- **Font Loading** — Use `BitmapFont` (`.fnt`/`.xml` + atlas) for in-game text, or `expo-font` for system fonts
+- **Font Loading** — Use `BitmapFont` (`.fnt` + atlas) for in-game text, or `expo-font` for system fonts. On Android prebuild release, prefer `.fnt` over `.xml` for the font definition file (see [BitmapFont caveat](#%EF%B8%8F-use-fnt-not-xml--android-prebuild-caveat))
+- **Android prebuild — bundled assets** — In release builds, `Asset.fromModule(require('./image.png'))` initially returns a bare resource name (e.g. `assets_icon`) instead of a real `file://` path because the asset is compiled into Android's resource table, not extracted to disk. `loadExpoAsset` and `loadExpoBitmapFont` handle this by force-materializing each asset to the cache directory (`<cacheDir>/pixi-expo/<hash>.<ext>`) on first use, so you don't need to do anything in your app code — it Just Works™. Mentioned here only because it's surprising if you read the source or debug logs
 
 ## Compatibility
 
