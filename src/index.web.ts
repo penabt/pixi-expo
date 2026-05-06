@@ -11,6 +11,11 @@
  * @module @penabt/pixi-expo
  */
 
+// Side-effect import: registers the ParticleContainer render pipes so consumers
+// who use ParticleContainer on the web build don't have to re-import this
+// subpath. Mirrors the native entry's behaviour.
+import 'pixi.js/particle-container';
+
 import { Assets as _Assets } from 'pixi.js';
 import { Asset } from 'expo-asset';
 
@@ -124,8 +129,11 @@ export {
   AnimatedSprite,
   Mesh,
   NineSliceSprite,
+  ParticleContainer,
+  Particle,
   Texture,
   TextureSource,
+  BufferImageSource,
   Spritesheet,
   RenderTexture,
   Assets,
