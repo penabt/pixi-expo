@@ -3,16 +3,17 @@
 [![npm version](https://img.shields.io/npm/v/@penabt/pixi-expo.svg)](https://www.npmjs.com/package/@penabt/pixi-expo)
 [![license](https://img.shields.io/npm/l/@penabt/pixi-expo.svg)](https://github.com/penabt/pixi-expo/blob/main/LICENSE)
 
-**PixiJS v8 adapter for React Native Expo.** Enables hardware-accelerated 2D graphics in your Expo applications using the expo-gl WebGL context.
+**PixiJS v8 adapter for Expo — iOS, Android, and Web.** Enables hardware-accelerated 2D graphics in your Expo applications. Native targets render through the `expo-gl` WebGL context; the web target renders through a real `<canvas>` and PixiJS's built-in `BrowserAdapter` — same `<PixiView>` and asset API on every platform.
 
 ## Features
 
 - 🚀 **PixiJS v8 Support** - Full compatibility with the latest PixiJS version
 - 📱 **Expo Integration** - Works seamlessly with Expo managed and bare workflows
-- ⚡ **60 FPS Performance** - Hardware-accelerated WebGL rendering via expo-gl
+- 🌐 **Cross-platform** - Single API across iOS, Android, and Web (`expo start --web` / `expo export --platform web`)
+- ⚡ **60 FPS Performance** - Hardware-accelerated WebGL rendering on every target
 - 🎮 **Game Ready** - Perfect for 2D games, animations, and interactive graphics
 - 📦 **Easy Setup** - Drop-in PixiView component with simple API
-- 🔧 **Customizable** - Access to full PixiJS API and expo-gl context
+- 🔧 **Customizable** - Access to full PixiJS API and (on native) the expo-gl context
 
 ## Installation
 
@@ -20,9 +21,60 @@
 # Install the package
 npm install @penabt/pixi-expo
 
-# Install peer dependencies
+# Native (iOS / Android) peer dependencies
 npx expo install expo-gl expo-asset expo-font pixi.js
+
+# Add these too if you also target web
+npx expo install react-dom react-native-web @expo/metro-runtime
 ```
+
+## Web Support
+
+`@penabt/pixi-expo` ships separate native and web bundles selected automatically
+through `package.json` `exports` conditions. The same imports work on every
+platform:
+
+```tsx
+import { PixiView, createExpoManifest, registerBitmapFont } from '@penabt/pixi-expo';
+```
+
+- **Native (iOS / Android)** — uses `expo-gl`'s `GLView`, the custom
+  `DOMAdapter`, and the asset/font loaders backed by `expo-asset` / `expo-font`.
+- **Web** — uses a real `<canvas>` plus PixiJS's built-in `BrowserAdapter`. No
+  polyfills or `expo-gl` are pulled into the web bundle.
+
+### What works on both platforms
+
+`PixiView`, `PixiViewHandle`, `createExpoManifest`, `createExpoBundle`,
+`resolveExpoAsset`, `registerBitmapFont`, `calculateDesignScale`,
+`calculateDesignSafeArea`, plus all PixiJS re-exports.
+
+### Native-only APIs
+
+The low-level adapter helpers — `ExpoAdapter`, `ExpoCanvasElement`,
+`setActiveGLContext` / `getActiveCanvas` / `getActiveGL` /
+`clearActiveContext`, the touch event bridge utilities, and the loader
+extensions (`loadExpoAsset`, `loadTexture`, `loadExpoFont`,
+`loadExpoBitmapFont`) — exist only in the native build. They have no analogue
+on the web because PixiJS already speaks browser APIs natively.
+
+### Running the web target
+
+```bash
+npx expo start --web
+# or for a static export
+npx expo export --platform web
+```
+
+Bundlers outside Expo (raw webpack / Vite) need to alias `react-native` to
+`react-native-web` for `PixiView`'s container `<View>` to work.
+
+### Bitmap fonts on web
+
+`registerBitmapFont(fntFile, [pageFile, ...])` keeps the same shape. Bundlers
+hash asset filenames, so the `<page file="..."/>` references inside the `.fnt`
+cannot be auto-resolved — pass each page texture in the order the `.fnt`
+declares them, exactly as on native.
 
 ## Quick Start
 
@@ -462,19 +514,21 @@ const safe = calculateDesignSafeArea(insets, scale, 720, 1280, PixelRatio.get())
 
 ## Limitations
 
-- **No Canvas 2D** — expo-gl only supports WebGL, not Canvas 2D context
-- **No Text** — `Text` (canvas-based) and `HTMLText` are not available. Use `BitmapText` instead
-- **Font Loading** — Use `BitmapFont` (`.fnt` + atlas) for in-game text, or `expo-font` for system fonts. On Android prebuild release, prefer `.fnt` over `.xml` for the font definition file (see [BitmapFont caveat](#%EF%B8%8F-use-fnt-not-xml--android-prebuild-caveat))
+- **No Canvas 2D on native** — expo-gl only supports WebGL, not Canvas 2D context. (The web build uses real browser APIs, where Canvas 2D is available — but PixiJS still renders via WebGL there.)
+- **No Text on native** — `Text` (canvas-based) and `HTMLText` are not available on native. Use `BitmapText` instead. (`Text` works on web.)
+- **Font Loading** — Use `BitmapFont` (`.fnt` + atlas) for in-game text, or `expo-font` for system fonts on native. On Android prebuild release, prefer `.fnt` over `.xml` for the font definition file (see [BitmapFont caveat](#%EF%B8%8F-use-fnt-not-xml--android-prebuild-caveat))
 - **Android prebuild — bundled assets** — In release builds, `Asset.fromModule(require('./image.png'))` initially returns a bare resource name (e.g. `assets_icon`) instead of a real `file://` path because the asset is compiled into Android's resource table, not extracted to disk. `loadExpoAsset` and `loadExpoBitmapFont` handle this by force-materializing each asset to the cache directory (`<cacheDir>/pixi-expo/<hash>.<ext>`) on first use, so you don't need to do anything in your app code — it Just Works™. Mentioned here only because it's surprising if you read the source or debug logs
 
 ## Compatibility
 
-| Package      | Version  |
-| ------------ | -------- |
-| pixi.js      | ≥ 8.0.0  |
-| expo         | ≥ 50.0.0 |
-| expo-gl      | ≥ 14.0.0 |
-| react-native | ≥ 0.73.0 |
+| Package          | Version  | Notes                                  |
+| ---------------- | -------- | -------------------------------------- |
+| pixi.js          | ≥ 8.0.0  |                                        |
+| expo             | ≥ 50.0.0 |                                        |
+| expo-gl          | ≥ 14.0.0 | Native only                            |
+| react-native     | ≥ 0.73.0 |                                        |
+| react-native-web | ≥ 0.19.0 | Web only (optional peer)               |
+| react-dom        | ≥ 18.0.0 | Web only (optional peer)               |
 
 ## Contributing
 
