@@ -205,6 +205,23 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
           const scale = designScaleRef.current!;
           app.stage.scale.set(scale.stageScaleX, scale.stageScaleY);
           app.stage.position.set(scale.offsetX, scale.offsetY);
+
+          // Always re-apply with current real-window dimensions after init.
+          // onLayout in RN-web sometimes reports the FIRST layout pass before
+          // SafeAreaProvider / outer flex layout has settled, especially when
+          // the page loads into an already-fullscreen window. Reading
+          // `window.innerWidth/Height` directly is the only fully reliable
+          // post-init source. If the canvas's actual offset size differs we
+          // re-apply the scale to match.
+          const realW =
+            typeof window !== 'undefined' ? window.innerWidth : layoutRef.current.width;
+          const realH =
+            typeof window !== 'undefined' ? window.innerHeight : layoutRef.current.height;
+          const realDpr =
+            (typeof window !== 'undefined' && window.devicePixelRatio) || dprRef.current;
+          if (realW > 0 && realH > 0) {
+            applyDesignScale(app, realW * realDpr, realH * realDpr);
+          }
         }
 
         if (!interactiveEvents) {
@@ -269,6 +286,46 @@ export const PixiView = forwardRef<PixiViewHandle, PixiViewProps>((props, ref) =
     },
     [hasDesignResolution, applyDesignScale, resolution, initApplication],
   );
+
+  // ---------------------------------------------------------------------------
+  // Window resize fallback.
+  //
+  // react-native-web's onLayout is supposed to fire on parent resize via an
+  // internal ResizeObserver, but in practice it can miss cases where the body
+  // height comes from `height: 100vh` and the user resizes the window without
+  // changing the View's flex constraints. A direct window listener guarantees
+  // we re-apply the design scale on every browser resize.
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onWindowResize = () => {
+      const app = appRef.current;
+      if (!app) return;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      if (w <= 0 || h <= 0) return;
+      const dpr = window.devicePixelRatio || 1;
+      dprRef.current = dpr;
+      if (hasDesignResolution) {
+        applyDesignScale(app, w * dpr, h * dpr);
+      } else {
+        app.renderer.resolution = resolution ?? dpr;
+        app.renderer.resize(w, h);
+      }
+    };
+    window.addEventListener('resize', onWindowResize);
+    // Visual viewport resize (mobile zoom, browser UI show/hide) — extra signal
+    if (typeof (window as any).visualViewport !== 'undefined') {
+      (window as any).visualViewport.addEventListener('resize', onWindowResize);
+    }
+    return () => {
+      window.removeEventListener('resize', onWindowResize);
+      if (typeof (window as any).visualViewport !== 'undefined') {
+        (window as any).visualViewport.removeEventListener('resize', onWindowResize);
+      }
+    };
+  }, [hasDesignResolution, applyDesignScale, resolution]);
 
   // ---------------------------------------------------------------------------
   // Cleanup.

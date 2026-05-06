@@ -79,6 +79,19 @@ export function registerBitmapFont(
 // LOADER EXTENSION
 // =============================================================================
 
+/**
+ * Extract the bitmap-font key out of a URL or path. PixiJS's Resolver may
+ * expand a registered key like `__expo_bmfont_0` to a full URL such as
+ * `http://localhost:8081/__expo_bmfont_0` before it reaches our loader, so we
+ * have to scan the trailing path component rather than checking startsWith.
+ */
+function extractBmfontKey(url: string): string | null {
+  if (typeof url !== 'string') return null;
+  if (url.startsWith(BMFONT_PREFIX)) return url;
+  const match = url.match(/(?:^|\/)(__expo_bmfont_\d+)(?:\?.*)?$/);
+  return match ? match[1] : null;
+}
+
 export const loadWebBitmapFont = {
   extension: {
     type: ExtensionType.LoadParser,
@@ -89,7 +102,7 @@ export const loadWebBitmapFont = {
   name: 'loadWebBitmapFont',
 
   test(url: string): boolean {
-    return url.startsWith(BMFONT_PREFIX);
+    return extractBmfontKey(url) !== null;
   },
 
   async testParse(data: string): Promise<boolean> {
@@ -98,7 +111,8 @@ export const loadWebBitmapFont = {
   },
 
   async load(url: string): Promise<string> {
-    const entry = bitmapFontRegistry.get(url);
+    const key = extractBmfontKey(url) ?? url;
+    const entry = bitmapFontRegistry.get(key);
     if (!entry) {
       throw new Error(`[loadWebBitmapFont] No registered bitmap font for key: ${url}`);
     }
@@ -118,7 +132,8 @@ export const loadWebBitmapFont = {
       : bitmapFontXMLStringParser.parse(asset);
 
     const src = data.src ?? '';
-    const entry = bitmapFontRegistry.get(src);
+    const key = extractBmfontKey(src) ?? src;
+    const entry = bitmapFontRegistry.get(key);
     if (!entry) {
       throw new Error(`[loadWebBitmapFont] No registered bitmap font for: ${src}`);
     }
