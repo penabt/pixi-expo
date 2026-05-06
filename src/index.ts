@@ -56,6 +56,20 @@
 import './adapter/polyfills';
 
 // =============================================================================
+// PHASE 1.5: OPTIONAL PIXIJS FEATURE PIPES
+// These side-effect imports register optional rendering pipes with the PixiJS
+// extension system. The base `pixi.js` barrel deliberately omits them so
+// browser apps can tree-shake what they don't use; mobile/Expo apps almost
+// always want them, and the cost is a few KB per pipe.
+//
+// ParticleContainer in particular is a footgun: without this import it
+// silently renders nothing. Every Expo+PixiJS app would otherwise re-discover
+// this and add the import themselves. Centralizing it here is the right call.
+// =============================================================================
+
+import 'pixi.js/particle-container';
+
+// =============================================================================
 // PHASE 2: ADAPTER SETUP
 // Import adapter components that don't depend on PixiJS.
 // These provide the bridge between React Native and PixiJS.
@@ -243,6 +257,10 @@ export {
   Mesh,
   /** 9-slice scaling sprite */
   NineSliceSprite,
+  /** GPU-batched particle container — auto-registered via the side-effect import above */
+  ParticleContainer,
+  /** Lightweight particle for use inside ParticleContainer */
+  Particle,
 
   // ---------------------------------------------------------------------------
   // Textures & Resources
@@ -251,6 +269,8 @@ export {
   Texture,
   /** Texture source data */
   TextureSource,
+  /** Texture source backed by a raw RGBA byte buffer (skips render-to-texture) */
+  BufferImageSource,
   /** Multiple textures from a single image */
   Spritesheet,
   /** Render to texture */
